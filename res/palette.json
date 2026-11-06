@@ -1,0 +1,20 @@
+{
+  "_comment": "Atomic's colour rotation: the fifteen colours a group of modules wears, first to fifteenth, a sixteenth group coming round to the first again. The first is also what a module working on its own shows. To use your own, copy this file to Atomic/palette.json in Rack's user folder and edit the hex colours there; Rack reads it when it starts, and a missing or broken file falls back to this one.",
+  "rotation": [
+    "#ffd714",
+    "#29b2ef",
+    "#ed2c24",
+    "#00b56e",
+    "#d52bed",
+    "#f2b120",
+    "#22e6ef",
+    "#ff7ec8",
+    "#b8f03c",
+    "#3c9ea0",
+    "#ffb83c",
+    "#a89cff",
+    "#ff6e5a",
+    "#6ed8ff",
+    "#7ee8b0"
+  ]
+}

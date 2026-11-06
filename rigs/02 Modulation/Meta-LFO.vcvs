@@ -1,0 +1,981 @@
+{
+  "modules": [
+    {
+      "id": 356607957355178,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 4.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 4123541754850185,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 5093989510953023,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": -3.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 8326130027156451,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": -5.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 617398825304340,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": -9.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 4554103060733366,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": -11.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 7858276400544090,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": -15.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 8326650004175567,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        },
+        {
+          "value": 0.295121938,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.449999988
+      },
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 2727787727508665,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.449999988,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.386932582
+      },
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 6961704132497079,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.386932582,
+          "id": 0
+        },
+        {
+          "value": 0.477410436,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.627034783
+      },
+      "pos": [
+        27,
+        0
+      ]
+    },
+    {
+      "id": 5741577007727028,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.166849777,
+          "id": 0
+        },
+        {
+          "value": 0.673198283,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.600000024
+      },
+      "pos": [
+        30,
+        0
+      ]
+    },
+    {
+      "id": 2162806450793748,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.600000024,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.517927468
+      },
+      "pos": [
+        33,
+        0
+      ]
+    },
+    {
+      "id": 2746041089219715,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.517927468,
+          "id": 0
+        },
+        {
+          "value": 0.463911116,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.675180674
+      },
+      "pos": [
+        36,
+        0
+      ]
+    },
+    {
+      "id": 4896197313288913,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": -1.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        39,
+        0
+      ]
+    },
+    {
+      "id": 3681367593371615,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.480213106
+      },
+      "pos": [
+        42,
+        0
+      ]
+    },
+    {
+      "id": 3423753973516933,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0451273657,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.871922612
+      },
+      "pos": [
+        45,
+        0
+      ]
+    },
+    {
+      "id": 6260432001586865,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.315247178,
+          "id": 0
+        },
+        {
+          "value": 0.257232428,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.0158762932
+      },
+      "pos": [
+        48,
+        0
+      ]
+    },
+    {
+      "id": 7031957870597648,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.247712448,
+          "id": 0
+        },
+        {
+          "value": 0.739742875,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.5
+      },
+      "pos": [
+        51,
+        0
+      ]
+    },
+    {
+      "id": 976396938512638,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 2.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": -2.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        54,
+        0
+      ]
+    },
+    {
+      "id": 5985570086943037,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 5.0,
+          "id": 0
+        },
+        {
+          "value": 0.5,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        57,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 7709069022316606,
+      "outputModuleId": 5093989510953023,
+      "outputId": 1,
+      "inputModuleId": 3423753973516933,
+      "inputId": 1,
+      "color": "#f3374b"
+    },
+    {
+      "id": 8908059431109360,
+      "outputModuleId": 8326130027156451,
+      "outputId": 1,
+      "inputModuleId": 7031957870597648,
+      "inputId": 1,
+      "color": "#ffb437"
+    },
+    {
+      "id": 2419542621156091,
+      "outputModuleId": 617398825304340,
+      "outputId": 1,
+      "inputModuleId": 6260432001586865,
+      "inputId": 1,
+      "color": "#f3374b"
+    },
+    {
+      "id": 6136816856574602,
+      "outputModuleId": 4896197313288913,
+      "outputId": 1,
+      "inputModuleId": 976396938512638,
+      "inputId": 4,
+      "color": "#f3374b"
+    },
+    {
+      "id": 7627620853355359,
+      "outputModuleId": 4554103060733366,
+      "outputId": 1,
+      "inputModuleId": 5741577007727028,
+      "inputId": 1,
+      "color": "#8b4ade"
+    },
+    {
+      "id": 1365989912600408,
+      "outputModuleId": 7858276400544090,
+      "outputId": 1,
+      "inputModuleId": 8326650004175567,
+      "inputId": 1,
+      "color": "#ffb437"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Experiment with RATEs and self patching for even more unpredictable behavior. "
+}

@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in Atomic behaves wrongly, crashes or looks broken.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for taking the time. A patch file that shows the problem is worth more than any description, so attach one if you can.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw or heard, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: From a new patch, the modules placed and the cables, knobs or menus touched, in order.
+      placeholder: |
+        1. Place a CLK, three CVs and a SEQ edge to edge
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: Atomic version
+      description: In any Atomic module's right-click menu, under Info.
+      placeholder: 2.0.0
+    validations:
+      required: true
+  - type: input
+    id: rack
+    attributes:
+      label: Rack version and edition
+      description: Help menu, About. Free, Pro, or Pro as a plugin in a DAW (which DAW).
+      placeholder: 2.6.6 Free
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Windows
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: osversion
+    attributes:
+      label: OS version
+      placeholder: macOS 15.1, Windows 11, Ubuntu 24.04
+  - type: textarea
+    id: patch
+    attributes:
+      label: Patch file and log
+      description: Drag in the .vcv patch (zip it if GitHub refuses it) and, after a crash, Rack's log.txt from the Rack user folder (Help menu, Open user folder).
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, a recording, other plugins in the patch, the sample rate.

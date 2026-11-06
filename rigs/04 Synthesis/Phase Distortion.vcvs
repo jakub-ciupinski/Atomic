@@ -1,0 +1,315 @@
+{
+  "modules": [
+    {
+      "id": 8779694942197720,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 2
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 2919211571191476,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 6968638628144367,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 2
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 875047795492618,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 409.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 5160130924011826,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 2531037297744154,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 5860275396563201,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 0
+      },
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 3648015259885218,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 1927481348306500,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 2.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 1.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        24,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 6111372384203698,
+      "outputModuleId": 2531037297744154,
+      "outputId": 1,
+      "inputModuleId": 1927481348306500,
+      "inputId": 4,
+      "color": "#8b4ade"
+    },
+    {
+      "id": 6220040827358666,
+      "outputModuleId": 2919211571191476,
+      "outputId": 0,
+      "inputModuleId": 5160130924011826,
+      "inputId": 0,
+      "color": "#f3374b"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Move CV to test this demo. \n\nFirst CRV/SEQ pair is the phasor. Notice the BLEP/Oversampling diodes are off. \n\nSecond CRV/SEQ pair is a phase-driven osc. "
+}

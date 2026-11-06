@@ -1,0 +1,249 @@
+{
+  "modules": [
+    {
+      "id": 6770163681956778,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 5.0,
+          "id": 0
+        },
+        {
+          "value": 0.5,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 7846605788547009,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.779936254,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.134218991
+      },
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 2151543503241625,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.134218976,
+          "id": 0
+        },
+        {
+          "value": 0.100000001,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.5
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 2469869639775467,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        },
+        {
+          "value": 0.75,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.866986871
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 4504711618270206,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.866986871,
+          "id": 0
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 109095049239634,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 2.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        15,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 4908549696201176,
+      "outputModuleId": 6770163681956778,
+      "outputId": 0,
+      "inputModuleId": 109095049239634,
+      "inputId": 4,
+      "color": "#00b56e"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "IN  = ATN's IN\nOUT = SEQ's OUT\nATN = Drive\n\nNotice that the CLAMP diode on the ATN's output is switched ON for this to work."
+}

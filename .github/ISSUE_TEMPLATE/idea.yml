@@ -1,0 +1,16 @@
+name: Idea
+description: A module, a feature or a change you would like to see.
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you would like to patch, and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: A patch, a sketch, a module elsewhere that does something like it.

@@ -1,0 +1,8 @@
+build/
+dep/
+dist/
+plugin.dylib
+plugin.so
+plugin.dll
+Rack-SDK
+.DS_Store

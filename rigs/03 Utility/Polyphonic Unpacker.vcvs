@@ -1,0 +1,425 @@
+{
+  "modules": [
+    {
+      "id": 2009291927209412,
+      "plugin": "Atomic",
+      "model": "POLY",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 6
+        },
+        {
+          "value": 1.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 1.0,
+          "id": 13
+        },
+        {
+          "value": 1.0,
+          "id": 14
+        },
+        {
+          "value": 1.0,
+          "id": 15
+        },
+        {
+          "value": 1.0,
+          "id": 16
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        }
+      ],
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 6160114493688021,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 6552281619713154,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 2697556142332232,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 7442116867960409,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 2446611845805309,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 7493894918210349,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 5742897453557713,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 3324207017437014,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 2448489398571555,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        27,
+        0
+      ]
+    },
+    {
+      "id": 2947819057810304,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        30,
+        0
+      ]
+    },
+    {
+      "id": 5506521213692399,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        33,
+        0
+      ]
+    },
+    {
+      "id": 4309691326536513,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        36,
+        0
+      ]
+    },
+    {
+      "id": 8584321518381564,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        39,
+        0
+      ]
+    },
+    {
+      "id": 6396534640679414,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        42,
+        0
+      ]
+    },
+    {
+      "id": 4454825183581978,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        45,
+        0
+      ]
+    },
+    {
+      "id": 7582108078415037,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        48,
+        0
+      ]
+    },
+    {
+      "id": 7893316650917868,
+      "plugin": "Atomic",
+      "model": "POLY",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 6
+        },
+        {
+          "value": 1.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 1.0,
+          "id": 13
+        },
+        {
+          "value": 1.0,
+          "id": 14
+        },
+        {
+          "value": 1.0,
+          "id": 15
+        },
+        {
+          "value": 1.0,
+          "id": 16
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        }
+      ],
+      "pos": [
+        51,
+        0
+      ]
+    }
+  ],
+  "cables": [],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Plug polyphonic cable to the first POLY. You can then replace individual channel values with external CV or by hand. All 16 channels are then repacked by the second POLY. "
+}

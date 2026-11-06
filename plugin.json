@@ -1,0 +1,127 @@
+{
+  "slug": "Atomic",
+  "name": "Atomic",
+  "version": "2.0.0",
+  "license": "GPL-3.0-or-later",
+  "brand": "Atomic",
+  "author": "Jakub Ciupinski",
+  "pluginUrl": "https://atomic-modular.com/",
+  "manualUrl": "https://atomic-modular.com/",
+  "sourceUrl": "https://github.com/jakub-ciupinski/Atomic",
+  "changelogUrl": "https://github.com/jakub-ciupinski/Atomic/blob/main/CHANGELOG.md",
+  "description": "Atomic modules bond on contact. Push them edge to edge and they become one module of your own making.",
+  "modules": [
+    {
+      "slug": "SEQ",
+      "name": "SEQ",
+      "description": "Sequencer and arpeggiator. One of the Atomic modules that bond on contact. Can be clocked by the Atomic CLK.",
+      "tags": [
+        "Sequencer",
+        "Arpeggiator",
+        "Recording",
+        "Switch"
+      ]
+    },
+    {
+      "slug": "CLK",
+      "name": "CLK",
+      "description": "Clock with two variants: BPM or Hz. One of the Atomic modules that bond on contact.",
+      "tags": [
+        "Clock generator",
+        "Clock modulator",
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "QNT",
+      "name": "QNT",
+      "description": "Multi-octave quantizer with microtuning, transposition and scale rotation, a precision volt divider, or a piano roll chord editor. One of the Atomic modules that bond on contact. Can be sequenced by the Atomic SEQ.",
+      "tags": [
+        "Quantizer",
+        "Polyphonic",
+        "Controller",
+        "Utility"
+      ]
+    },
+    {
+      "slug": "CV",
+      "name": "CV",
+      "description": "Constant voltage generator, universal fader, CV monitor. One of the Atomic modules that bond on contact. Can be sequenced by the Atomic SEQ.",
+      "tags": [
+        "Controller",
+        "Utility",
+        "Visual"
+      ]
+    },
+    {
+      "slug": "CRV",
+      "name": "CRV",
+      "description": "Response curve, transfer function, voltage remapper, exp/log converter. One of the Atomic modules that bond on contact. Can be sequenced by the Atomic SEQ as a multisegment LFO or envelope.",
+      "tags": [
+        "Waveshaper",
+        "Function generator",
+        "Utility"
+      ]
+    },
+    {
+      "slug": "ATN",
+      "name": "ATN",
+      "description": "Attenuverter with offset and clamp, universal VCA, four-quadrant multiplier. One of the Atomic modules that bond on contact. Can be sequenced by the Atomic SEQ.",
+      "tags": [
+        "Attenuator",
+        "Voltage-controlled amplifier",
+        "Polyphonic",
+        "Utility",
+        "Visual"
+      ]
+    },
+    {
+      "slug": "TRG",
+      "name": "TRG",
+      "description": "Up to sixteen buttons as triggers or toggles. One of the Atomic modules that bond on contact. Can be sequenced by the Atomic SEQ.",
+      "tags": [
+        "Controller",
+        "Switch",
+        "Polyphonic"
+      ]
+    },
+    {
+      "slug": "POLY",
+      "name": "POLY",
+      "description": "Merges up to sixteen stacked cables into a polyphonic signal. One of the Atomic modules that bond on contact.",
+      "tags": [
+        "Polyphonic",
+        "Utility",
+        "Visual"
+      ]
+    },
+    {
+      "slug": "MIX",
+      "name": "MIX",
+      "description": "Ultra-compact mixer with individually adjustable levels, mute and solo. Accepts up to fifteen stacked cables or a single polyphonic signal. One of the Atomic modules that bond on contact.",
+      "tags": [
+        "Mixer",
+        "Polyphonic",
+        "Utility",
+        "Visual"
+      ]
+    },
+    {
+      "slug": "RIG",
+      "name": "RIG",
+      "description": "Preset loader and saver for the Atomic ecosystem. Can sequence or morph between scenes. One of the Atomic modules that bond on contact.",
+      "tags": [
+        "Controller",
+        "Utility"
+      ]
+    },
+    {
+      "slug": "GAP",
+      "name": "GAP",
+      "description": "Blank 3 HP panel. One of the Atomic modules that bond on contact.",
+      "tags": [
+        "Blank"
+      ]
+    }
+  ]
+}

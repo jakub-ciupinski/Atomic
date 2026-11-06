@@ -1,0 +1,584 @@
+{
+  "modules": [
+    {
+      "id": 3258402527047353,
+      "plugin": "Atomic",
+      "model": "TRG",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 13
+        },
+        {
+          "value": 0.0,
+          "id": 14
+        },
+        {
+          "value": 0.0,
+          "id": 15
+        },
+        {
+          "value": 0.0,
+          "id": 16
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 1.0,
+          "id": 17
+        }
+      ],
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 1013713354357481,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": -5.70943165,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 4840314611794406,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 5.0,
+          "id": 0
+        },
+        {
+          "value": 0.5,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 8756370611311255,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.531959891,
+          "id": 2
+        },
+        {
+          "value": -1.27957284,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.540565968
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 6978262044864630,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.540565968,
+          "id": 0
+        },
+        {
+          "value": 0.531959891,
+          "id": 2
+        },
+        {
+          "value": 10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.456733048
+      },
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 6802348217052860,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.456733048,
+          "id": 0
+        },
+        {
+          "value": 0.151789173,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.290342897
+      },
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 1148818701625660,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.290342897,
+          "id": 0
+        },
+        {
+          "value": 0.335372388,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.251691818
+      },
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 7644017929411729,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.251691818,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": -10.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.134672254
+      },
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 7447147836740641,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.134672254,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 6.41620159,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.101295233
+      },
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 5078243244203824,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.101295225,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 6.41620159,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.0512582362
+      },
+      "pos": [
+        27,
+        0
+      ]
+    },
+    {
+      "id": 3184963062916697,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0512582287,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 6.41620159,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.00678089261
+      },
+      "pos": [
+        30,
+        0
+      ]
+    },
+    {
+      "id": 7863260498255298,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.00678090053,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 6.41620159,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        33,
+        0
+      ]
+    },
+    {
+      "id": 1331740414505736,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 2.0,
+          "id": 1
+        },
+        {
+          "value": 3.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 16.0,
+          "id": 6
+        },
+        {
+          "value": 1.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        36,
+        0
+      ]
+    },
+    {
+      "id": 8179426231572009,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        39,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 2470499024927075,
+      "outputModuleId": 3258402527047353,
+      "outputId": 0,
+      "inputModuleId": 1013713354357481,
+      "inputId": 3,
+      "color": "#3695ef"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Notice that when you configure TRG to have only one step (with SHIFT-drag), you can press anywhere in the black area and use it as a big convenient standalone button."
+}

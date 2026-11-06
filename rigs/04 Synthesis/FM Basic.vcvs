@@ -1,0 +1,397 @@
+{
+  "modules": [
+    {
+      "id": 3891612651043436,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 1698768379985477,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 5153498214533749,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 4470523596329236,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 4519272596267526,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 3136160152688495,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 0
+      },
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 8255153012053774,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 436324931909356,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 8538963708717364,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": true
+      },
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 5482764427619550,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        27,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 96748652096321,
+      "outputModuleId": 4519272596267526,
+      "outputId": 0,
+      "inputModuleId": 8538963708717364,
+      "inputId": 4,
+      "color": "#3695ef"
+    },
+    {
+      "id": 7763603433429814,
+      "outputModuleId": 4470523596329236,
+      "outputId": 0,
+      "inputModuleId": 8538963708717364,
+      "inputId": 2,
+      "color": "#8b4ade"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Exponential FM:\nSEQs FM input. \n\nLinear FM:\nSEQs PHASE input.\n(phase modulation)\n\nMove ATNs gains to hear the difference."
+}

@@ -1,0 +1,276 @@
+{
+  "modules": [
+    {
+      "id": 3063600410396703,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 2.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": true
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 8765708870166416,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 3.97897005,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 3953534546408846,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.400000006,
+          "id": 0
+        },
+        {
+          "value": 0.600000024,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 6672840218174096,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 6
+        }
+      ],
+      "data": {
+        "blep": true,
+        "oversample": true,
+        "rateFree": false
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 4714306995706236,
+      "plugin": "Atomic",
+      "model": "TRG",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 6
+        },
+        {
+          "value": 1.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 13
+        },
+        {
+          "value": 0.0,
+          "id": 14
+        },
+        {
+          "value": 0.0,
+          "id": 15
+        },
+        {
+          "value": 0.0,
+          "id": 16
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 8.0,
+          "id": 17
+        }
+      ],
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 1832260871836975,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 15.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 6
+        }
+      ],
+      "data": {
+        "blep": true,
+        "oversample": true,
+        "rateFree": false
+      },
+      "pos": [
+        15,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 1449131710172367,
+      "outputModuleId": 6672840218174096,
+      "outputId": 1,
+      "inputModuleId": 3063600410396703,
+      "inputId": 2,
+      "color": "#f3374b"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Use ATN's gain to adjust amount of swing."
+}

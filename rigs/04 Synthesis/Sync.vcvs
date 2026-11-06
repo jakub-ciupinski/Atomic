@@ -1,0 +1,418 @@
+{
+  "modules": [
+    {
+      "id": 5094344649059985,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 100.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": -2.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 6222815717259360,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        },
+        {
+          "value": 0.649999976,
+          "id": 2
+        },
+        {
+          "value": 3.00295973,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 605595704039529,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 4777497857126449,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 0
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 7459895782240979,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": -2.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 8511537377279398,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 5832468357091167,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": true
+      },
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 8354732194881826,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": true
+      },
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 7230642298640634,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        24,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 2491245682544844,
+      "outputModuleId": 605595704039529,
+      "outputId": 1,
+      "inputModuleId": 8354732194881826,
+      "inputId": 2,
+      "color": "#8b4ade"
+    },
+    {
+      "id": 2521991709185036,
+      "outputModuleId": 5832468357091167,
+      "outputId": 0,
+      "inputModuleId": 8354732194881826,
+      "inputId": 3,
+      "color": "#8b4ade"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Classic Hard Sync. Before the GAP is just a simple envelope that drives FM for this demo. But after the gap the green oscillator is synced by the yellow (RESET = SYNC input). To play melodically, use second CLK V/OCT. "
+}

@@ -1,0 +1,726 @@
+{
+  "modules": [
+    {
+      "id": 6582315362859677,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 2.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 2.42898604e-5,
+          "id": 2
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 4087747978003636,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 1782673524474828,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 3447334432758257,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 2.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 1785140014560245,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 3.03999996,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": true
+      },
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 5661332156614248,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 4.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 7892608241613610,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 5.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 3587580674257547,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 6.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 423553868218495,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 7.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 6281641944296460,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 8.0,
+          "id": 2
+        },
+        {
+          "value": 2.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        27,
+        0
+      ]
+    },
+    {
+      "id": 1609719235144779,
+      "plugin": "Atomic",
+      "model": "MIX",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 0.5,
+          "id": 2
+        },
+        {
+          "value": 0.25,
+          "id": 3
+        },
+        {
+          "value": 0.125,
+          "id": 4
+        },
+        {
+          "value": 0.0625,
+          "id": 5
+        },
+        {
+          "value": 0.03125,
+          "id": 6
+        },
+        {
+          "value": 0.015625,
+          "id": 7
+        },
+        {
+          "value": 0.0078125,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 1.0,
+          "id": 13
+        },
+        {
+          "value": 1.0,
+          "id": 14
+        },
+        {
+          "value": 1.0,
+          "id": 15
+        },
+        {
+          "value": 0.429999977,
+          "id": 16
+        },
+        {
+          "value": 0.0,
+          "id": 17
+        },
+        {
+          "value": 0.0,
+          "id": 18
+        },
+        {
+          "value": 0.0,
+          "id": 19
+        },
+        {
+          "value": 0.0,
+          "id": 20
+        },
+        {
+          "value": 0.0,
+          "id": 21
+        },
+        {
+          "value": 0.0,
+          "id": 22
+        },
+        {
+          "value": 0.0,
+          "id": 23
+        },
+        {
+          "value": 0.0,
+          "id": 24
+        },
+        {
+          "value": 0.0,
+          "id": 25
+        },
+        {
+          "value": 0.0,
+          "id": 26
+        },
+        {
+          "value": 0.0,
+          "id": 27
+        },
+        {
+          "value": 0.0,
+          "id": 28
+        },
+        {
+          "value": 0.0,
+          "id": 29
+        },
+        {
+          "value": 0.0,
+          "id": 30
+        },
+        {
+          "value": 0.0,
+          "id": 31
+        },
+        {
+          "value": 0.0,
+          "id": 32
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        }
+      ],
+      "pos": [
+        30,
+        0
+      ]
+    }
+  ],
+  "cables": [],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Use MIX to adjust individual overtones. For inharmonic sounds adjust RATEs with Cmd/Ctrl. "
+}

@@ -1,0 +1,372 @@
+{
+  "modules": [
+    {
+      "id": 2003583658948866,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": -0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 5138579092280313,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 4019064127903989,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 7476866355758237,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 5180340690390148,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 7797478291931211,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 1887369540757549,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 996481828177714,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 5419454802194755,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 7771143608634742,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        27,
+        0
+      ]
+    },
+    {
+      "id": 9003572324776218,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        30,
+        0
+      ]
+    },
+    {
+      "id": 3049725402955230,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        33,
+        0
+      ]
+    },
+    {
+      "id": 3528072687188133,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        36,
+        0
+      ]
+    },
+    {
+      "id": 4761763258727390,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        39,
+        0
+      ]
+    },
+    {
+      "id": 7878849952681214,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        42,
+        0
+      ]
+    },
+    {
+      "id": 6531941227308764,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        45,
+        0
+      ]
+    },
+    {
+      "id": 3622484617052114,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        }
+      ],
+      "pos": [
+        48,
+        0
+      ]
+    },
+    {
+      "id": 7893316650917868,
+      "plugin": "Atomic",
+      "model": "POLY",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 6
+        },
+        {
+          "value": 1.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 1.0,
+          "id": 13
+        },
+        {
+          "value": 1.0,
+          "id": 14
+        },
+        {
+          "value": 1.0,
+          "id": 15
+        },
+        {
+          "value": 1.0,
+          "id": 16
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        }
+      ],
+      "pos": [
+        51,
+        0
+      ]
+    }
+  ],
+  "cables": [],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "Use ATN to define range of your fader bank. \n\nTIP: use RIG's scenes to save your values. "
+}

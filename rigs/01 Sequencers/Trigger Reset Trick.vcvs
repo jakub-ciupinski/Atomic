@@ -1,0 +1,360 @@
+{
+  "modules": [
+    {
+      "id": 7147502743183701,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 90.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 4.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 7915526845186505,
+      "plugin": "Atomic",
+      "model": "TRG",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 6
+        },
+        {
+          "value": 1.0,
+          "id": 7
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 0.0,
+          "id": 9
+        },
+        {
+          "value": 0.0,
+          "id": 10
+        },
+        {
+          "value": 0.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 13
+        },
+        {
+          "value": 0.0,
+          "id": 14
+        },
+        {
+          "value": 0.0,
+          "id": 15
+        },
+        {
+          "value": 0.0,
+          "id": 16
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 8.0,
+          "id": 17
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 4688700672489025,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 7263923951171869,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 5.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 2490546302284105,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 2.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        12,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 3307349644544332,
+      "outputModuleId": 7915526845186505,
+      "outputId": 4,
+      "inputModuleId": 2490546302284105,
+      "inputId": 3,
+      "color": "#00b56e"
+    },
+    {
+      "id": 7535200473312197,
+      "outputModuleId": 7915526845186505,
+      "outputId": 3,
+      "inputModuleId": 7263923951171869,
+      "inputId": 3,
+      "color": "#3695ef"
+    },
+    {
+      "id": 485063205238380,
+      "outputModuleId": 7263923951171869,
+      "outputId": 0,
+      "inputModuleId": 7915526845186505,
+      "inputId": 7,
+      "color": "#00b56e"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "When you patch individual steps they automatically recognize connection type. \n\nOutgoing = send pulse on playhead.\n\nIncoming = flip state on pulse. "
+}

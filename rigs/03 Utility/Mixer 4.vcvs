@@ -1,0 +1,277 @@
+{
+  "modules": [
+    {
+      "id": 7405258901229475,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 3523774537818720,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 708128290786353,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 49705181907548,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 10.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 393567703974704,
+      "plugin": "Atomic",
+      "model": "MIX",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 1.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 1.0,
+          "id": 6
+        },
+        {
+          "value": 1.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 1.0,
+          "id": 13
+        },
+        {
+          "value": 1.0,
+          "id": 14
+        },
+        {
+          "value": 1.0,
+          "id": 15
+        },
+        {
+          "value": 1.0,
+          "id": 16
+        },
+        {
+          "value": 0.0,
+          "id": 17
+        },
+        {
+          "value": 0.0,
+          "id": 18
+        },
+        {
+          "value": 0.0,
+          "id": 19
+        },
+        {
+          "value": 0.0,
+          "id": 20
+        },
+        {
+          "value": 0.0,
+          "id": 21
+        },
+        {
+          "value": 0.0,
+          "id": 22
+        },
+        {
+          "value": 0.0,
+          "id": 23
+        },
+        {
+          "value": 0.0,
+          "id": 24
+        },
+        {
+          "value": 0.0,
+          "id": 25
+        },
+        {
+          "value": 0.0,
+          "id": 26
+        },
+        {
+          "value": 0.0,
+          "id": 27
+        },
+        {
+          "value": 0.0,
+          "id": 28
+        },
+        {
+          "value": 0.0,
+          "id": 29
+        },
+        {
+          "value": 0.0,
+          "id": 30
+        },
+        {
+          "value": 0.0,
+          "id": 31
+        },
+        {
+          "value": 0.0,
+          "id": 32
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        }
+      ],
+      "pos": [
+        12,
+        0
+      ]
+    }
+  ],
+  "cables": [],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "ATN can also boost the signal. If the mouse drag starts from 1.00 gain position, you can go up. "
+}

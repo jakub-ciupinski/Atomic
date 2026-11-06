@@ -1,0 +1,389 @@
+{
+  "modules": [
+    {
+      "id": 2801201247705242,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 0
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 6561527420597416,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 5.0,
+          "id": 0
+        },
+        {
+          "value": 0.5,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 1315646635112973,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 8060508885337882,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.5,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 1915321268179035,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 0
+      },
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 8146059582695988,
+      "plugin": "Atomic",
+      "model": "ATN",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 5.0,
+          "id": 0
+        },
+        {
+          "value": 0.5,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        }
+      ],
+      "data": {
+        "arrowGuessed": true
+      },
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 4803985888851214,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.692314386,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.400000006
+      },
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 2316936042593382,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.400000006,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.199999988
+      },
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 2222665382583794,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.200000003,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.600000024
+      },
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 6113452242193080,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.600000024,
+          "id": 0
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "shownEnd": 0.699999988
+      },
+      "pos": [
+        27,
+        0
+      ]
+    },
+    {
+      "id": 4575616831050608,
+      "plugin": "Atomic",
+      "model": "CRV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.699999988,
+          "id": 0
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 2.35861492,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "pos": [
+        30,
+        0
+      ]
+    },
+    {
+      "id": 7664684120608822,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 2.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        33,
+        0
+      ]
+    },
+    {
+      "id": 6323157309119733,
+      "plugin": "Atomic",
+      "model": "GAP",
+      "version": "2.0.0",
+      "params": [],
+      "data": {
+        "skin": 0
+      },
+      "pos": [
+        36,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 6319174523348844,
+      "outputModuleId": 1315646635112973,
+      "outputId": 0,
+      "inputModuleId": 7664684120608822,
+      "inputId": 4,
+      "color": "#8b4ade"
+    },
+    {
+      "id": 8048371135641286,
+      "outputModuleId": 7664684120608822,
+      "outputId": 1,
+      "inputModuleId": 8060508885337882,
+      "inputId": 0,
+      "color": "#f3374b"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "In this demo the first CV module is your input, the second is the output."
+}

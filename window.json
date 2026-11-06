@@ -1,0 +1,4 @@
+{
+	"about": "The window, in milliseconds. Every Seq lands each step on its clock pulse, with nothing held, and keeps that pulse's decision open for this long after it: a reset, or a rate at the RATE jack, arriving within the window, late through a cable from another Seq, a gate or a delay, is taken as if it had come with the pulse, so the Seq lands once on step one and the trigger it already sent is the one trigger. The cost is a sample of the old step for each cable it came through. One millisecond is the default; nought keeps a pulse's decision open on its own sample alone, and anything past a hundred is read as a hundred. A reset later than the window arms the Seq and the next pulse is step one.",
+	"windowMs": 1
+}

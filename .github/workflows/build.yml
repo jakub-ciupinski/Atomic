@@ -1,0 +1,172 @@
+# Atomic built for every platform Rack runs on. The release form of the
+# plugin (a plain make, as the VCV Library builds it), and the tools plugin
+# beside it where the checkout has one (the public repository does not):
+# Linux and Windows cross-compiled in the community's prebuilt
+# rack-plugin-toolchain image on an ubuntu runner, the two Macs built on a
+# macOS runner with Apple's own compiler, arm64 natively and x64 by the SDK's
+# CROSS_COMPILE (the toolchain's Mac image carries Apple's SDK and is not
+# published anywhere). Each job keeps its .vcvplugin packages as an artifact,
+# and a pushed v* tag gathers all four into one draft GitHub Release, left
+# for a person to read and publish.
+name: build
+
+on:
+  # Not on every push: on a pushed tag (v*), a run started by hand, and once a
+  # week in the night, Sunday 02:00 NZDT, so the build is known to hold.
+  push:
+    tags: ['v*']
+  schedule:
+    - cron: '0 13 * * 6'
+  workflow_dispatch:
+
+env:
+  # The SDK the plugin is built against (Rack-SDK/CHANGELOG.html); the image
+  # ships an older one, fetched afresh below.
+  RACK_SDK_VERSION: 2.6.6
+  TOOLCHAIN: /home/build/rack-plugin-toolchain
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/qno/rack-plugin-toolchain-win-linux:14
+      options: --user root
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [lin-x64, win-x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rack SDK ${{ env.RACK_SDK_VERSION }}
+        run: |
+          cd "$TOOLCHAIN"
+          make rack-sdk-clean
+          make rack-sdk-${{ matrix.platform }} RACK_SDK_VERSION="$RACK_SDK_VERSION"
+
+      - name: Build
+        run: |
+          export PLUGIN_DIR="$GITHUB_WORKSPACE"
+          cd "$TOOLCHAIN"
+          make -j"$(nproc)" plugin-build-${{ matrix.platform }}
+
+      - name: Build the tools
+        # The tools plugin (tools/), small enough to come along in the same job,
+        # and only where the checkout carries it: the public repository is
+        # Atomic alone.
+        if: hashFiles('tools/Makefile') != ''
+        run: |
+          export PLUGIN_DIR="$GITHUB_WORKSPACE/tools"
+          cd "$TOOLCHAIN"
+          make -j"$(nproc)" plugin-build-${{ matrix.platform }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugins-${{ matrix.platform }}
+          path: ${{ env.TOOLCHAIN }}/plugin-build/*.vcvplugin
+          if-no-files-found: error
+
+  mac:
+    name: mac-${{ matrix.cpu }}
+    # A macOS runner costs ten times the minutes of a private repository's
+    # free allowance and nothing on a public one, so the weekly run builds the
+    # Macs only once the repository is public; a tag or a run by hand always
+    # does.
+    if: github.event_name != 'schedule' || !github.event.repository.private
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cpu: arm64
+            target: arm64-apple-darwin
+          - cpu: x64
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rack SDK ${{ env.RACK_SDK_VERSION }} for mac-${{ matrix.cpu }}
+        # Outside the checkout, so its path has no space in it and make dist
+        # packs nothing of it.
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o sdk.zip "https://vcvrack.com/downloads/Rack-SDK-${RACK_SDK_VERSION}-mac-${{ matrix.cpu }}.zip"
+          unzip -q sdk.zip
+          echo "RACK_DIR=$RUNNER_TEMP/Rack-SDK" >> "$GITHUB_ENV"
+
+      - name: Build
+        # CROSS_COMPILE names the target to the SDK's arch.mk, which hands it
+        # to clang as --target, so one Apple Silicon runner builds both.
+        env:
+          CROSS_COMPILE: ${{ matrix.target }}
+        run: |
+          command -v zstd >/dev/null || brew install zstd
+          make -j"$(sysctl -n hw.ncpu)" dist
+          if [ -f tools/Makefile ]; then make -C tools -j"$(sysctl -n hw.ncpu)" dist; fi
+          mkdir -p "$RUNNER_TEMP/packages"
+          cp dist/*.vcvplugin "$RUNNER_TEMP/packages/"
+          if [ -d tools/dist ]; then cp tools/dist/*.vcvplugin "$RUNNER_TEMP/packages/"; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugins-mac-${{ matrix.cpu }}
+          path: ${{ runner.temp }}/packages/*.vcvplugin
+          if-no-files-found: error
+
+  release:
+    name: draft release
+    # A tag alone makes a release, and only once every platform has built.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The tag and plugin.json agree
+        # v2.0.0 or a pre-release of it, v2.0.0-beta.1, for plugin.json's
+        # 2.0.0: Rack reads the version from the manifest, never the tag.
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(jq -r .version plugin.json)"
+          if [ "${tag%%-*}" != "$manifest" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not name plugin.json's version $manifest"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: plugins-*
+          path: packages
+          merge-multiple: true
+
+      - name: Provenance
+        # Each package signed as built here, from this commit, by this
+        # workflow: anyone can check one with `gh attestation verify
+        # <file> --repo <owner>/<repo>`, and the repository's Attestations
+        # page lists them. Free on a public repository.
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: packages/*.vcvplugin
+
+      - name: Draft release
+        # Left a draft: its notes and its publishing are a person's. A tag
+        # with a hyphen in it (v2.0.0-beta.1) is marked a pre-release.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l packages
+          pre=()
+          case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" packages/*.vcvplugin \
+            --repo "$GITHUB_REPOSITORY" --draft "${pre[@]}" --verify-tag \
+            --title "Atomic ${GITHUB_REF_NAME#v}" \
+            --notes "Packages for Windows, Linux and both Macs. Put the one for your computer into the plugins folder of Rack's user folder (Help, Open user folder) and restart Rack."

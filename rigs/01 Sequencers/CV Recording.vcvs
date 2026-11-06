@@ -1,0 +1,393 @@
+{
+  "modules": [
+    {
+      "id": 3269374127351002,
+      "plugin": "Atomic",
+      "model": "CLK",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 120.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 2.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 2
+        },
+        {
+          "value": 1.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "ppqn": 1,
+        "blep": false,
+        "rateFree": false
+      },
+      "pos": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 7528125481609883,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.550000012,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        3,
+        0
+      ]
+    },
+    {
+      "id": 5799263559699202,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.699999988,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": 3303022135934822,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.850000024,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        9,
+        0
+      ]
+    },
+    {
+      "id": 5672699737207723,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 1.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        12,
+        0
+      ]
+    },
+    {
+      "id": 2262453675670940,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.699999988,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        15,
+        0
+      ]
+    },
+    {
+      "id": 2628063885156520,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.850000024,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        18,
+        0
+      ]
+    },
+    {
+      "id": 6564026659081927,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.550000012,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        21,
+        0
+      ]
+    },
+    {
+      "id": 5883475560397749,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.699999988,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        24,
+        0
+      ]
+    },
+    {
+      "id": 5125402299187316,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.699999988,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        27,
+        0
+      ]
+    },
+    {
+      "id": 5335020622593766,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.850000024,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        30,
+        0
+      ]
+    },
+    {
+      "id": 4447272573666741,
+      "plugin": "Atomic",
+      "model": "CV",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.550000012,
+          "id": 0
+        },
+        {
+          "value": 0.0,
+          "id": 1
+        }
+      ],
+      "pos": [
+        33,
+        0
+      ]
+    },
+    {
+      "id": 3711605031953794,
+      "plugin": "Atomic",
+      "model": "SEQ",
+      "version": "2.0.0",
+      "params": [
+        {
+          "value": 0.0,
+          "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 5
+        },
+        {
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 1.0,
+          "id": 2
+        },
+        {
+          "value": 0.0,
+          "id": 0
+        },
+        {
+          "value": 9.0,
+          "id": 6
+        },
+        {
+          "value": 0.0,
+          "id": 7
+        },
+        {
+          "value": 1.0,
+          "id": 9
+        },
+        {
+          "value": 1.0,
+          "id": 11
+        },
+        {
+          "value": 0.0,
+          "id": 8
+        },
+        {
+          "value": 1.0,
+          "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 12
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        }
+      ],
+      "data": {
+        "rateFree": false
+      },
+      "pos": [
+        36,
+        0
+      ]
+    }
+  ],
+  "cables": [
+    {
+      "id": 5794080088528645,
+      "outputModuleId": 5672699737207723,
+      "outputId": 1,
+      "inputModuleId": 3711605031953794,
+      "inputId": 0,
+      "color": "#f3374b"
+    }
+  ],
+  "rigCables": [],
+  "scenes": [],
+  "scene": 0,
+  "note": "You can also record into CRV, TRG and QNT modules. \n\nTIP: Patch your MIDI keyboard CV into REC and GATE into CLK to step-input your sequences."
+}
