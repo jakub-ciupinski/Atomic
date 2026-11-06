@@ -1,18 +1,22 @@
 {
   "modules": [
     {
-      "id": 230101679049935,
+      "id": 5936831224762464,
       "plugin": "Atomic",
       "model": "CLK",
       "version": "2.0.0",
       "params": [
         {
+          "value": 1.0,
+          "id": 0
+        },
+        {
           "value": 120.0,
           "id": 1
         },
         {
-          "value": 1.0,
-          "id": 5
+          "value": 0.0,
+          "id": 2
         },
         {
           "value": 1.0,
@@ -20,11 +24,11 @@
         },
         {
           "value": 1.0,
-          "id": 0
+          "id": 4
         },
         {
-          "value": 0.0,
-          "id": 2
+          "value": 1.0,
+          "id": 5
         }
       ],
       "data": {
@@ -38,7 +42,7 @@
       ]
     },
     {
-      "id": 7208360814236629,
+      "id": 8036049670933128,
       "plugin": "Atomic",
       "model": "CRV",
       "version": "2.0.0",
@@ -48,12 +52,12 @@
           "id": 0
         },
         {
-          "value": 0.0,
-          "id": 2
-        },
-        {
           "value": 10.0,
           "id": 1
+        },
+        {
+          "value": 0.0,
+          "id": 2
         },
         {
           "value": 0.0,
@@ -70,30 +74,34 @@
       ]
     },
     {
-      "id": 6410325157898368,
+      "id": 7531625706572540,
       "plugin": "Atomic",
       "model": "SEQ",
       "version": "2.0.0",
       "params": [
         {
+          "value": 1.0,
+          "id": 0
+        },
+        {
           "value": 0.0,
           "id": 1
-        },
-        {
-          "value": 0.0,
-          "id": 5
-        },
-        {
-          "value": 0.0,
-          "id": 3
         },
         {
           "value": 1.0,
           "id": 2
         },
         {
-          "value": 2.0,
-          "id": 0
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        },
+        {
+          "value": 0.0,
+          "id": 5
         },
         {
           "value": 9.0,
@@ -104,20 +112,20 @@
           "id": 7
         },
         {
-          "value": 1.0,
-          "id": 9
-        },
-        {
-          "value": 1.0,
-          "id": 11
-        },
-        {
           "value": 0.0,
           "id": 8
         },
         {
+          "value": 1.0,
+          "id": 9
+        },
+        {
           "value": 0.0,
           "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 11
         },
         {
           "value": 0.0,
@@ -133,30 +141,34 @@
       ]
     },
     {
-      "id": 3273902442609280,
+      "id": 1575685162861633,
       "plugin": "Atomic",
       "model": "SEQ",
       "version": "2.0.0",
       "params": [
         {
+          "value": 1.0,
+          "id": 0
+        },
+        {
           "value": 0.0,
           "id": 1
-        },
-        {
-          "value": 0.0,
-          "id": 5
-        },
-        {
-          "value": 0.0,
-          "id": 3
         },
         {
           "value": 4.0,
           "id": 2
         },
         {
-          "value": 2.0,
-          "id": 0
+          "value": 0.0,
+          "id": 3
+        },
+        {
+          "value": 0.0,
+          "id": 4
+        },
+        {
+          "value": 0.0,
+          "id": 5
         },
         {
           "value": 9.0,
@@ -167,20 +179,20 @@
           "id": 7
         },
         {
-          "value": 1.0,
-          "id": 9
-        },
-        {
-          "value": 1.0,
-          "id": 11
-        },
-        {
           "value": 0.0,
           "id": 8
         },
         {
+          "value": 1.0,
+          "id": 9
+        },
+        {
           "value": 0.0,
           "id": 10
+        },
+        {
+          "value": 1.0,
+          "id": 11
         },
         {
           "value": 0.0,
@@ -196,21 +208,18 @@
       ]
     },
     {
-      "id": 8529664791105907,
+      "id": 6886834688460130,
       "plugin": "Atomic",
       "model": "GAP",
       "version": "2.0.0",
       "params": [],
-      "data": {
-        "skin": 0
-      },
       "pos": [
         12,
         0
       ]
     },
     {
-      "id": 6366621727566669,
+      "id": 2150309731890669,
       "plugin": "Atomic",
       "model": "ATN",
       "version": "2.0.0",
@@ -243,18 +252,18 @@
   ],
   "cables": [
     {
-      "id": 8240236724878314,
-      "outputModuleId": 6410325157898368,
+      "id": 3998575454588889,
+      "outputModuleId": 7531625706572540,
       "outputId": 1,
-      "inputModuleId": 6366621727566669,
+      "inputModuleId": 2150309731890669,
       "inputId": 0,
       "color": "#00b56e"
     },
     {
-      "id": 2632234365924828,
-      "outputModuleId": 3273902442609280,
+      "id": 3189579349200548,
+      "outputModuleId": 1575685162861633,
       "outputId": 1,
-      "inputModuleId": 6366621727566669,
+      "inputModuleId": 2150309731890669,
       "inputId": 2,
       "color": "#f3374b"
     }
