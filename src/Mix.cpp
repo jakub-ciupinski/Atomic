@@ -67,12 +67,12 @@ inline const Gesture G_MIX_UNMUTE_MIX =
 inline const Gesture G_MIX_SOLO = declare(On::Click, Mod::Command, Rank::Block, RACK_MOD_CTRL_NAME "-click: solo channel");
 inline const Gesture G_MIX_UNSOLO = declare(On::Click, Mod::Command, Rank::Block, RACK_MOD_CTRL_NAME "-click: unsolo channel");
 inline const Gesture G_MIX_SCAN =
-    declare(On::Drag, Mod::Command, Rank::Block, RACK_MOD_CTRL_NAME "-drag: solo each channel crossed in turn");
+    declare(On::Drag, Mod::Command, Rank::Block, RACK_MOD_CTRL_NAME "-drag: solo channels in turn");
 inline const Gesture G_MIX_OPEN = declare(On::Click, Mod::Command, Rank::Block, RACK_MOD_CTRL_NAME "-click: clear every mute and solo");
 inline const Gesture G_MIX_ALL =
     declare(On::Drag, Mod::ShiftCommand, Rank::Rare, RACK_MOD_SHIFT_NAME "+" RACK_MOD_CTRL_NAME "-drag: scale all channels");
 inline const Gesture G_MIX_RESET_ALL =
-    declare(On::Double, Mod::ShiftCommand, Rank::Rare, RACK_MOD_SHIFT_NAME "+" RACK_MOD_CTRL_NAME "-double-click: reset all channels");
+    declare(On::Double, Mod::ShiftCommand, Rank::Rare, RACK_MOD_SHIFT_NAME "+" RACK_MOD_CTRL_NAME "-double-click: reset channels");
 /** A channel's, muted or not and soloed or not. */
 inline Gestures channelGestures(bool muted, bool soloed) {
 	return {muted ? &G_MIX_UNMUTE : &G_MIX_MUTE, soloed ? &G_MIX_UNSOLO : &G_MIX_SOLO, &G_MIX_SCAN, &G_MIX_ALL, &G_MIX_RESET_ALL};
