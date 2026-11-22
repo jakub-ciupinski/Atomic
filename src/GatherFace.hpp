@@ -29,6 +29,7 @@ struct GatherRows {
 		h = pitch * 0.55f;
 	}
 	float y(int c) const { return top + strip + c * pitch; } // a row's top
+	float barY(int c) const { return y(c) + (pitch - h) / 2.f; } // its bar's top, centred in the row
 };
 
 inline bool stripShown(GatherReads* g) { return g && relaxed(g->stripNow); }
@@ -66,14 +67,25 @@ and takes it back when a drag is let go on it, since Rack leaves the row
 first and drops the drag on it after. A stroke whose cursor is held still
 on its own row (`stroking`) keeps it until it ends. A row with nothing in it
 (`live`) is not there for the hand. A module's row overriding a drag's
-enter calls this one's first. */
+enter calls this one's first, and every row reaches its module through
+`gatherer`. */
 template <class G, class Base>
 struct GatherRow : Hovered<Base> {
 	float inset = 0.f;
 	int index = 0;
 	bool stroking = false;
-	virtual bool live() = 0;
 	G* gatherer() { return dynamic_cast<G*>(this->module); }
+	/** Whether the row is there for the hand: a source's row while it has
+	one, and a row past the sources', a Mix's sum, always. */
+	bool live() {
+		G* g = gatherer();
+		return g && (index < relaxed(g->srcNNow) || index >= G::SOURCE_ROWS);
+	}
+	/** The module woken, for a change the hand has just made. */
+	void wake() {
+		if (G* g = gatherer())
+			g->wake();
+	}
 	void point(bool on) {
 		widget::Widget*& p = gatherPointed();
 		if (on && live())
@@ -390,6 +402,57 @@ inline NVGcolor gatheredRowColor(uint32_t rgb, uint64_t cols, int c) {
 }
 /** How faint a row left out of the jack, or at nothing in the sum, is. */
 constexpr float GATHER_FAINT = 0.22f;
+
+/** A gatherer's body, the screen its rows are drawn on: each row with a
+source a bar of its held span (`HeldSpan`) in its source's colour, and the
+rows past the count ghosts. What differs is the module's (`drawBody`): it
+walks the rows (`walk`), deciding of each whether it is drawn and how thick
+(`paintBar`), and draws what is its own over them, a Mix's solo arrows and
+its sum, a Poly's playheads. With no module, in the browser, the body shows
+the preview it was made with. */
+template <class G, int BARS>
+struct GatherBody : Screen {
+	G* module = nullptr;
+	int n;
+	uint64_t cols = 0;
+	float foot[BARS] = {}, top[BARS] = {}; // each bar's span, below nought and above it
+	GatherBody(int previewN, std::initializer_list<float> previewFoot, std::initializer_list<float> previewTop) : n(previewN) {
+		std::copy(previewFoot.begin(), previewFoot.end(), foot);
+		std::copy(previewTop.begin(), previewTop.end(), top);
+	}
+	virtual void drawBody(NVGcontext* vg, const GatherRows& r) = 0;
+	void drawLayer(const DrawArgs& args, int layer) override {
+		Screen::drawLayer(args, layer);
+		if (layer != 1)
+			return;
+		if (module) {
+			cols = relaxed(module->colorsNow);
+			n = relaxed(module->header) & 0xff;
+			for (int c = 0; c < BARS; c++)
+				unpackSpan(relaxed(module->shown[c]), foot[c], top[c]);
+		}
+		drawBody(args.vg, GatherRows(box.size, stripShown(module)));
+	}
+	/** Every source's row: `bar(c, colour)` for one with a source, a ghost
+	past the count. */
+	template <typename F>
+	void walk(NVGcontext* vg, const GatherRows& r, F bar) {
+		for (int c = 0; c < G::SOURCE_ROWS; c++) {
+			if (c >= n) {
+				paintEmptyRow(vg, r.inset, r.barY(c), box.size.x - 2 * r.inset, r.h);
+				continue;
+			}
+			bar(c, gatheredRowColor(module ? relaxed(module->rgbNow[c]) : 0, cols, c));
+		}
+	}
+	/** Row `c`'s bar, as thick as `level` of the row, and at nothing a faint
+	line that still shows its span. */
+	void paintBar(NVGcontext* vg, const GatherRows& r, int c, NVGcolor cc, float level) {
+		const float t = std::max(LINE_PX, r.h * level);
+		drawSpanBar(vg, r.inset, r.barY(c) + (r.h - t) / 2.f, box.size.x - 2 * r.inset, t, foot[c] / 10.f, top[c] / 10.f,
+		            level > 0.f ? cc : color::alpha(cc, GATHER_FAINT));
+	}
+};
 
 /** A gatherer's panel, a Poly's or a Mix's, which differ by the title: the
 caption under the jack is OUT, whatever is gathered, as every output's is;

@@ -80,24 +80,30 @@ struct JackGlow {
 	/** How many of my outputs, from the first, have a centre to light: all
 	of them, save where a module keeps jacks with no PJ301M drawn for them. */
 	virtual int glowingJacks(Module* m) { return (int)m->outputs.size(); }
+	/** The light's arrays, sized to the jacks that glow: when the module
+	joins the engine (`onAdd`), so the audio thread allocates nothing, and
+	again by the look only if the count has moved since. */
+	void sizeGlow(Module* m) {
+		const int n = std::min(glowingJacks(m), (int)m->outputs.size());
+		if (n == glowJacks)
+			return;
+		glow.reset(new std::atomic<float>[3 * n]);
+		glowHeld.reset(new rig::Held[3 * n]);
+		glowWidth.reset(new int[n]);
+		glowPeak.reset(new Peak[n]);
+		for (int i = 0; i < 3 * n; i++)
+			glow[i].store(0.f, std::memory_order_relaxed);
+		glowJacks = n;
+	}
 	/** Once a sample, after the jacks are written: every sample seen, the
 	light worked out on the look. */
 	void tickJacks(Module* m, const Module::ProcessArgs& args) {
 		const bool look = (args.frame % JACK_LOOK) == 0;
 		if (look) {
-			const int n = std::min(glowingJacks(m), (int)m->outputs.size());
-			if (n != glowJacks) {
-				glow.reset(new std::atomic<float>[3 * n]);
-				glowHeld.reset(new rig::Held[3 * n]);
-				glowWidth.reset(new int[n]);
-				glowPeak.reset(new Peak[n]);
-				for (int i = 0; i < 3 * n; i++)
-					glow[i].store(0.f, std::memory_order_relaxed);
-				glowJacks = n;
-			}
+			sizeGlow(m);
 			// The width is the look's to decide, for the samples up to the
 			// next: a jack changing width shows it a look later at most.
-			for (int j = 0; j < n; j++) {
+			for (int j = 0; j < glowJacks; j++) {
 				const int ch = (int)m->outputs[j].getChannels();
 				glowWidth[j] = std::max(1, ch > 0 ? ch : channelsMeant(j));
 			}

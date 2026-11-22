@@ -16,13 +16,6 @@ const Gesture G_CLOCK_TENS = declare(On::Drag, Mod::Shift, Rank::Known, RACK_MOD
 const Gesture G_CLOCK_OCTAVES = declare(On::Drag, Mod::Shift, Rank::Known, RACK_MOD_SHIFT_NAME "-drag: frequency by octaves");
 const Gesture G_CLOCK_CENTS = declare(On::Drag, Mod::Command, Rank::Known, RACK_MOD_CTRL_NAME "-drag: frequency by cents");
 
-// The multiplier as a signed step from x1 on the one ladder a Seq's rate
-// is on too, RATE_MIN to RATE_MAX: the arithmetic, the ladder
-// and the jack's sweep are in Rate.hpp, the rate held in millionths. A plain
-// drag steps by a whole rate, Command held by a hundredth, Command and shift
-// by a ten-thousandth, and shift held lands on the powers of two
-// (`RateScreen`).
-
 
 struct Clock;
 /** The tempo as the hover and a typed value have it: the tempo in force, the
@@ -102,10 +95,7 @@ struct Clock : Member, Probe, RateMode {
 	int drawnColor() const { return std::max(0, relaxed(groupColor)); }
 	int drawnOut() override { return drawnColor(); }
 	std::atomic<int> groupColor{0}; // the colour its group opens with, from `rankClock`
-	/** Whether a reader takes my count, for the RESET tooltip: a parse fact,
-	told me by the reader's clock slot (`TOLD_COUNTED`), never read off my
-	parents or written into me by every reader every wake. */
-	std::atomic<bool> readNow{false};
+	std::atomic<bool> readNow{false}; // whether a reader takes my count, for the RESET tooltip (`Taker`, below)
 	/** Whether a reader takes my count: told by the parse that one holds me
 	(`TOLD_COUNTED`), and then by each holder, every time it changes, whether
 	it takes the count or a cable of its own has it (`countTaken`), so a Clock
@@ -285,12 +275,12 @@ struct Clock : Member, Probe, RateMode {
 	double rampFrom = 0.0, span = 0.0;
 	int64_t capTick = -1;
 	int64_t beatFrame = -1;
-	// Where in its frame the last beat fell, in hertz (`TrigCounter::after`),
-	// nought in BPM, and so the time it stood at, `beatFrame` + 1 less it:
-	// the ramp is timed from there, so a cycle that is no whole number of
+	// The time the last beat stood at, `beatFrame` + 1 less where in its
+	// frame it fell (in hertz `TrigCounter::after`, nought in BPM): the ramp
+	// is timed from there, so a cycle that is no whole number of
 	// frames keeps its length tick by tick. In BPM `beatTime` is `beatFrame`
 	// + 1 and every sum below is a whole number of frames.
-	double beatAfter = 0.0, beatTime = 0.0;
+	double beatTime = 0.0;
 	// The beats landed since the start, in hertz the cycles, for the PHASE
 	// jack's ramp (`followCycle`).
 	int64_t cycWhole = 0;
@@ -1258,7 +1248,6 @@ struct Clock : Member, Probe, RateMode {
 		}
 		beatOnGrid = phaseIn == 0;
 		beatFrame = at;
-		beatAfter = part;
 		beatTime = (double)at + 1.0 - part;
 		journey();
 	}
@@ -1975,7 +1964,10 @@ run along its foot in its cable's colour as a Seq's do, the V/OCT jack's in
 the whole octaves it moves the ticks by. With both patched the bar is the
 RATE jack's, the screen's own, and the hover names the two together. A plain
 drag moves by a whole rate, Command held by a hundredth, Command and shift by
-a ten-thousandth, and shift held lands on the powers of two (`RateScreen`). */
+a ten-thousandth, and shift held lands on the powers of two (`RateScreen`).
+The multiplier is a signed step from x1 on the one ladder a Seq's rate is on
+too, RATE_MIN to RATE_MAX, held in millionths: the arithmetic, the ladder and
+the jack's sweep are in Rate.hpp. */
 struct MultParam : RateScreen {
 	void step() override {
 		Clock* c = paramModule<Clock>(this);

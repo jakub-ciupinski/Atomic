@@ -120,10 +120,8 @@ struct HeadScreen : Screen {
 		if (head) {
 			count = head->shownCount();
 			phased = relaxed(head->shownPhased);
-			// The walk's own step, before a PHASE turn.
-			const int step = phased ? relaxed(head->shownBase) : head->shownPos();
 			if (count > 0)
-				shown = step + 1;
+				shown = head->namedStep() + 1;
 			dir = relaxed(head->shownDir);
 			col = playColor(head->shownColor());
 			phase = relaxed(head->shownPhase);
@@ -419,7 +417,7 @@ struct StepParam : VerticalDragParam {
 		moved = false;
 		holdAccum = 0.f;
 		strokeBegins();
-		holdFrom = m->phasedShown() ? relaxed(m->shownBase) : m->shownPos(); // the step the screen names
+		holdFrom = m->namedStep();
 		m->holdPos.store(holdFrom, std::memory_order_relaxed);
 		m->holding.store(true, std::memory_order_relaxed);
 		m->wake();

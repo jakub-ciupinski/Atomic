@@ -4,7 +4,7 @@
 #include "GatherFace.hpp"
 #include "Stack.hpp"
 
-/** Mix: mono outputs to its left, summed into one jack.
+/** Mix: every channel the modules to its left give, summed into one jack.
 
 The Poly's mirror: it gathers to its left exactly as a Poly does and from the
 same pool (`gather`, Gather.hpp), the kind of the nearest module to its left
@@ -297,26 +297,9 @@ silence (`Mix::open`), muted or left out by a solo, is not drawn at all, a
 gap, so a mute is told from a level at nothing; while a solo stands each
 soloed row has a triangle at either side of the glass pointing in at it, in
 its colour, in the margin beside the bars. */
-struct MixScreen : Screen {
-	Mix* module = nullptr;
-	void drawLayer(const DrawArgs& args, int layer) override {
-		Screen::drawLayer(args, layer);
-		if (layer != 1)
-			return;
-		NVGcontext* vg = args.vg;
-		int n = 3;
-		uint64_t cols = 0;
-		// Each bar's span, below nought and above it (`HeldSpan`).
-		float foot[ROWS + 1] = {0.f, -2.f, 0.f}, top[ROWS + 1] = {1.f, 0.f, 3.f};
-		top[ROWS] = 2.f;
-		if (module) {
-			cols = relaxed(module->colorsNow);
-			n = relaxed(module->header) & 0xff;
-			for (int c = 0; c <= ROWS; c++)
-				unpackSpan(relaxed(module->shown[c]), foot[c], top[c]);
-		}
-		const GatherRows r(box.size, stripShown(module));
-		const float w = box.size.x - 2 * r.inset;
+struct MixScreen : GatherBody<Mix, ROWS + 1> {
+	MixScreen() : GatherBody(3, {0.f, -2.f, 0.f}, {1.f, 0.f, 3.f}) { top[ROWS] = 2.f; }
+	void drawBody(NVGcontext* vg, const GatherRows& r) override {
 		const bool solo = module && module->soloing(n);
 		// A bar as thick as its level, faint at nothing, and none at all
 		// while the switches silence it; a soloed row pointed at from
@@ -324,24 +307,14 @@ struct MixScreen : Screen {
 		auto bar = [&](int c, NVGcolor cc) {
 			if (module && !module->open(c, solo))
 				return;
-			const float y = r.y(c) + (r.pitch - r.h) / 2.f;
-			const float lv = module ? module->level(c) : 1.f;
-			const float t = std::max(LINE_PX, r.h * lv);
-			drawSpanBar(vg, r.inset, y + (r.h - t) / 2.f, w, t, foot[c] / 10.f, top[c] / 10.f,
-			            lv > 0.f ? cc : color::alpha(cc, GATHER_FAINT));
+			paintBar(vg, r, c, cc, module ? module->level(c) : 1.f);
 			if (solo && c < ROWS) {
-				const float cy = y + r.h / 2.f;
+				const float cy = r.barY(c) + r.h / 2.f;
 				paintArrow(vg, r.inset / 2.f, cy, ARROW_RIGHT, cc);
 				paintArrow(vg, box.size.x - r.inset / 2.f, cy, ARROW_LEFT, cc);
 			}
 		};
-		for (int c = 0; c < ROWS; c++) {
-			if (c >= n) {
-				paintEmptyRow(vg, r.inset, r.y(c) + (r.pitch - r.h) / 2.f, w, r.h);
-				continue;
-			}
-			bar(c, gatheredRowColor(module ? relaxed(module->rgbNow[c]) : 0, cols, c));
-		}
+		walk(vg, r, bar);
 		// The sum is there whether or not anything is summed yet: an empty Mix
 		// still has its master fader.
 		bar(ROWS, gatheredColor(0));
@@ -390,9 +363,8 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 	stroke or a double click that took a muted row out of its mute. */
 	bool ownStroke = false;
 	GestureChanges own;
-	Mix* mix() { return dynamic_cast<Mix*>(module); }
 	bool mutedNow() {
-		Mix* m = mix();
+		Mix* m = gatherer();
 		return m && m->muteHolds(index);
 	}
 	/** A muted row taken out of its mute by the hand, from nothing: a
@@ -401,7 +373,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 	Noted first, so the stroke's one undo puts back the level and the mute
 	alike. */
 	void unmuteFromNothing(bool keepLevel) {
-		Mix* m = mix();
+		Mix* m = gatherer();
 		if (!m)
 			return;
 		ownStroke = true;
@@ -410,16 +382,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 		if (!keepLevel)
 			m->paramQuantities[Mix::LEVEL_PARAM + index]->setValue(0.f);
 		m->paramQuantities[Mix::MUTE_PARAM + index]->setValue(0.f);
-		wakeMix();
-	}
-	bool live() override {
-		Mix* m = dynamic_cast<Mix*>(module);
-		const int n = m ? relaxed(m->srcNNow) : 0;
-		return m && (index < n || index == ROWS);
-	}
-	void wakeMix() {
-		if (Mix* m = dynamic_cast<Mix*>(module))
-			m->wake();
+		wake();
 	}
 	void onButton(const ButtonEvent& e) override {
 		if (!live())
@@ -429,7 +392,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 		const bool left = e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS;
 		if (left)
 			press = STROKE;
-		Mix* m = mix();
+		Mix* m = gatherer();
 		const bool channel = index < ROWS;
 		if (m && left && Hand::in(G_MIX_MUTE, e.mods)) {
 			// A mute, painted over every row the stroke crosses: the row's
@@ -453,7 +416,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 			openAll(m);
 		}
 		if (press != STROKE) {
-			wakeMix();
+			wake();
 			e.consume(this);
 			return;
 		}
@@ -475,13 +438,13 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 	stays soloed. Rack's first move of a drag enters the row it began on,
 	which changes nothing until the pointer has been elsewhere. */
 	void scanTo(int row) {
-		Mix* m = mix();
+		Mix* m = gatherer();
 		if (!m || (row == index && !scanned))
 			return;
 		scanned = true;
 		for (int c = 0; c < ROWS; c++)
 			m->paramQuantities[Mix::SOLO_PARAM + c]->setValue(c == row ? 1.f : 0.f);
-		wakeMix();
+		wake();
 	}
 	void onDragStart(const DragStartEvent& e) override {
 		if (press != STROKE)
@@ -489,7 +452,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 		scaling = false;
 		ownStroke = false;
 		own.was.clear();
-		Mix* m = mix();
+		Mix* m = gatherer();
 		if (m && e.button == GLFW_MOUSE_BUTTON_LEFT && Hand::among(G_MIX_ALL) && live()) {
 			// A muted row is scaled as it stands, its level kept under its
 			// mute, so unmuting it later gives its share back.
@@ -536,7 +499,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 	}
 	/** A move of a scaling stroke (`scaling`). */
 	void scaleMove(const DragMoveEvent& e) {
-		Mix* m = dynamic_cast<Mix*>(module);
+		Mix* m = gatherer();
 		if (!m || e.button != GLFW_MOUSE_BUTTON_LEFT)
 			return;
 		dragAccum += strokeDelta(e);
@@ -556,7 +519,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 		}
 		if (atEnd)
 			dragAccum = 0.f;
-		wakeMix();
+		wake();
 	}
 	void onDragEnter(const DragEnterEvent& e) override {
 		GatherRow::onDragEnter(e);
@@ -567,7 +530,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 		if (!live() || index >= ROWS || !from || from->index == ROWS)
 			return;
 		if (from->press == MUTE && paintOver(e.origin, module, Mix::MUTE_PARAM + index))
-			wakeMix();
+			wake();
 		if (from->press == SOLO)
 			from->scanTo(index);
 	}
@@ -582,7 +545,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 		if (mutedNow() && !scaling)
 			unmuteFromNothing(true);
 		VerticalDragParam::onDoubleClick(e);
-		wakeMix();
+		wake();
 	}
 	/** Every channel's own double click at once, from a double click with
 	shift and command held: each level at its default, all of it, and each
@@ -592,7 +555,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 	pushes the one undo. */
 	bool resetting = false;
 	void resetAll() {
-		Mix* m = mix();
+		Mix* m = gatherer();
 		if (!m)
 			return;
 		resetting = spent = true; // no tremor scales the reset away
@@ -602,7 +565,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 			pq->setValue(pq->getDefaultValue());
 			m->paramQuantities[Mix::MUTE_PARAM + c]->setValue(0.f);
 		}
-		wakeMix();
+		wake();
 	}
 	void strokeMove(const DragMoveEvent& e) override {
 		if (press != STROKE)
@@ -612,7 +575,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 			return;
 		}
 		if (mutedNow() && e.button == GLFW_MOUSE_BUTTON_LEFT) {
-			// A muted rig is taken out of its mute at nothing once the
+			// A muted row is taken out of its mute at nothing once the
 			// pointer has strayed past a click's wobble, a click alone
 			// changing nothing; the travel so far stays in the accumulator
 			// and the next move steps from nothing.
@@ -626,7 +589,7 @@ struct MixRow : GatherRow<Mix, VerticalDragParam> {
 		}
 		VerticalDragParam::strokeMove(e);
 		say();
-		wakeMix();
+		wake();
 	}
 	/** A stroke on a level holds the cursor still on its row, which keeps
 	the pointer till it ends (`GatherRow`). */

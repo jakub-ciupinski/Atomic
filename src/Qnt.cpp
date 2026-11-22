@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Panel.hpp"
 #include "HeadBase.hpp"
+#include <bitset>
 
 /** Qnt, the quantizer: a keyboard, a piano roll or a volt divider whose lit
 keys snap the notes to its right. */
@@ -166,10 +167,30 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	// keyboard under the old lights.
 	int octavesWork = 1, transposeWork = 0, rollShiftWork = 0;
 	bool rollWork = false;
-	std::atomic<int> octavesNow{1};      // octaves the keyboard spans
-	std::atomic<bool> rollNow{false};    // the keys are the roll's rather than the keyboard's
-	std::atomic<int> rollShiftNow{0};    // semitones the roll is moved along the piano
-	ScaleAtomic scaleNow;                // the scale in force
+	/** What a screen reads of the scale in force, in one load: the scale,
+	and beside it the octaves the mode spans, whether the keys are the
+	roll's rather than the keyboard's, and the semitones the roll is moved
+	along the piano, published under the scale's own counter so a frame
+	never lays a roll's rows with one wake's shift under another's notes. */
+	struct Shown {
+		Scale scale;
+		int octaves = 1;
+		bool roll = false;
+		int shift = 0;
+		static uint32_t word(int octaves, bool roll, int shift) {
+			return (uint32_t)(uint8_t)octaves | (roll ? 1u : 0u) << 8 | (uint32_t)(uint8_t)(int8_t)shift << 16;
+		}
+	};
+	ScaleAtomic scaleNow{Shown::word(1, false, 0)}; // the scale in force, and what stands beside it
+	Shown shownNow() const {
+		uint32_t w = 0;
+		Shown s;
+		s.scale = scaleNow.load(&w);
+		s.octaves = (int)(w & 0xff);
+		s.roll = (w >> 8) & 1;
+		s.shift = (int)(int8_t)(uint8_t)(w >> 16);
+		return s;
+	}
 	// The volt divider's bands lit, packed as a key's playheads are
 	// (`packHead`), every reader sounding a band in its colour, so two Seqs
 	// on one band cut it in two as they cut a key: what the readers lit and
@@ -312,8 +333,9 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	void transposeSpan(int& lo, int& hi) {
 		lo = -TRANSPOSE_MAX;
 		hi = TRANSPOSE_MAX;
-		const Scale sc = scaleNow.load();
-		if (relaxed(rollNow) || chromaticNow() || !sc.any() || sc.spread)
+		const Shown sh = shownNow();
+		const Scale& sc = sh.scale;
+		if (sh.roll || chromaticNow() || !sc.any() || sc.spread)
 			return;
 		lo = degreeReach(sc, -TRANSPOSE_MAX, TRANSPOSE_MAX);
 		hi = degreeReach(sc, TRANSPOSE_MAX, TRANSPOSE_MAX);
@@ -324,16 +346,17 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	the degree-octave relation holds to be the period. One where a pattern
 	has no notes, whose transpose has nowhere to go. */
 	int transposePeriod() {
-		if (relaxed(rollNow) || chromaticNow())
+		const Shown sh = shownNow();
+		if (sh.roll || chromaticNow())
 			return 12;
-		return std::max(1, notesInPeriod(scaleNow.load()));
+		return std::max(1, notesInPeriod(sh.scale));
 	}
 	/** The transpose's count in the unit it is in, for whoever names it. */
 	struct TransposeQuantity : HintQuantity {
 		std::string getUnit() override {
 			Qnt* q = dynamic_cast<Qnt*>(module);
 			// A roll has no pattern to count along: always semitones.
-			const bool semis = q && (relaxed(q->rollNow) || q->chromaticNow());
+			const bool semis = q && (q->shownNow().roll || q->chromaticNow());
 			const int t = (int)std::round(getValue());
 			return std::string(semis ? " semitone" : " degree") + (std::abs(t) == 1 ? "" : "s");
 		}
@@ -388,7 +411,9 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	(`Member::watches`); a key outside the window is read nowhere. */
 	int watchedOct = -1, watchedShift = 0;
 	bool watchedRoll = false;
-	std::vector<bool> watchedKeys; // by param index, the keys in the window
+	// By param index, the keys in the window: a fixed set, remade on the
+	// engine thread as the host rebuilds its table, so it allocates nothing.
+	std::bitset<PARAMS_LEN> watchedKeys;
 	static bool isKeyParam(int p) {
 		// built once under the language's guard, since two rigs' hosts may ask at once
 		static const std::vector<bool> keys = [] {
@@ -407,7 +432,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		watchedOct = octaves;
 		watchedRoll = roll;
 		watchedShift = shift;
-		watchedKeys.assign(PARAMS_LEN, false);
+		watchedKeys.reset();
 		const int oct = std::max(octaves, 1);
 		for (int k = 0; k < 12 * oct; k++) {
 			watchedKeys[keyParamIn(k, roll, oct, shift)] = true;
@@ -438,15 +463,17 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	to the black keys' width and leave the middle of the screen dark for the
 	playheads. */
 	bool showsLane() const {
-		return relaxed(claimedNow) && !relaxed(rollNow) && relaxed(octavesNow) > 0;
+		const Shown sh = shownNow();
+		return relaxed(claimedNow) && !sh.roll && sh.octaves > 0;
 	}
 	/** Whether it is showing a roll, rather than a keyboard or nothing. */
 	bool showsRoll() const {
-		return relaxed(rollNow) && relaxed(octavesNow) > 0;
+		const Shown sh = shownNow();
+		return sh.roll && sh.octaves > 0;
 	}
 	/** Whether it is showing the volt divider, which has no octaves. */
 	bool showsDivider() const {
-		return relaxed(octavesNow) == 0;
+		return shownNow().octaves == 0;
 	}
 
 	/** Whether the keyboard has ever shown more than its first octave: the
@@ -471,8 +498,9 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	`base`, and a roll's, its foot past where the roll stands on the piano.
 	A roll's transpose sounds its notes moved and leaves them drawn where
 	they are set, as a MIDI transpose over a piano roll does. */
-	int movedBy(const Scale& s) {
-		return s.spread ? s.base - rollBase(s.octaves, relaxed(rollShiftNow)) : s.base;
+	static int movedBy(const Shown& sh) {
+		const Scale& s = sh.scale;
+		return s.spread ? s.base - rollBase(s.octaves, sh.shift) : s.base;
 	}
 	/** The mode in force, as `modeWith` takes it, an integer from the one
 	place it is read. */
@@ -555,7 +583,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	or leaves. */
 	int keysTipped = -1, transposeTipped = -1;
 	void retipKeys() {
-		const int roll = relaxed(rollNow) ? 1 : 0;
+		const int roll = shownNow().roll ? 1 : 0;
 		const int peers = relaxed(peersUi) ? 1 : 0;
 		const int down = relaxed(stoodDownUi) ? 1 : 0;
 		if ((down * 2 + roll) * 2 + peers != keysTipped) {
@@ -595,8 +623,9 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		const bool snapping = jackLiveNow();
 		// With no key lit it is a bypass, which a cable
 		// passes as it is and an empty chord gives as 0 V.
-		const Scale now = scaleNow.load();
-		const bool empty = !now.any() || relaxed(octavesNow) == 0;
+		const Shown sh = shownNow();
+		const Scale& now = sh.scale;
+		const bool empty = !now.any() || sh.octaves == 0;
 		retipLaw();
 		// IN says what OUT makes of it, the chord said only while it is
 		// empty; OUT says what it gives, with no unit on it and no
@@ -604,7 +633,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		// no keys to name and passes IN as it is. A divider takes the
 		// nearest line toward 0 V where the keys take the nearest key
 		// (`dividerSnap`), so its IN says which.
-		const bool none = relaxed(octavesNow) == 0 && !now.divides();
+		const bool none = sh.octaves == 0 && !now.divides();
 		const std::string lines = "Snapped at OUT to " + dividerSnap(false) + ", the parts of 10 V repeating past either end.";
 		const std::string linesChord = lines + " Empty, OUT gives the lines as a chord.";
 		const char* inLesson = none ? "Passed to OUT as it is."
@@ -843,13 +872,11 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	// holds me decides what I am to it. The band `act` snapped by, handed to `sound` within the same
 	// call.
 	int bandActed = NO_BAND;
-	int noteActedWork = 0; // the whole semitone `act` snapped to, its cents aside
+	int noteActedWork = 0; // the whole semitone `act` snapped to, its cents aside; a divider's is lit by its band
 	float act(Signal& s, int color, int* value) override {
 		if (s.present && transposeWork != 0 && scale.any())
 			s.set(s.semis + (float)transposeWork, s.color);
 		const float out = quantStage(s, scale, value, &bandActed, &noteActedWork);
-		if (scale.divides())
-			noteActedWork = (int)std::round(out);
 		if (value && *value >= 0)
 			*value = keyRow(noteActedWork);
 		return out;
@@ -925,10 +952,6 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	the readers' lights may leave me asleep, and the two are merged as they
 	are published, a reader's colour over my own. */
 	void light(int semis, int color) override {
-		if (scale.divides()) {
-			lightVolts((float)semis / 12.f, color);
-			return;
-		}
 		written();
 		litBy(color); // unquantized too: what I modify is read, whatever it lands on
 		if (!scale.holds(semis))
@@ -938,16 +961,6 @@ struct Qnt : Cartridge, QuantFace, Probe {
 			litKeys[nlitKeys++] = (uint8_t)row;
 		keyColorWork[row] = (uint8_t)(col + 1);
 		keyHeadsWork[row] = packHead(keyHeadsWork[row], col);
-	}
-	/** A divider's band, lit for the voltage it snaps: the band it stands in,
-	where the screen shows it (`Divider::shown`), wrapped every ten volts and
-	mirrored below nought. */
-	void lightVolts(float volts, int color) override {
-		if (!scale.divides()) {
-			light((int)std::round(volts * 12.f), color);
-			return;
-		}
-		lightBand(Divider::of(scale).band(volts), color);
 	}
 	/** A band by its own integer, where the screen shows it. */
 	void lightBand(int band, int color) override {
@@ -985,10 +998,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	}
 	void publishReads() override {
 		Cartridge::publishReads();
-		octavesNow.store(octavesWork, std::memory_order_relaxed);
-		rollNow.store(rollWork, std::memory_order_relaxed);
-		rollShiftNow.store(rollShiftWork, std::memory_order_relaxed);
-		scaleNow.store(scale);
+		scaleNow.store(scale, Shown::word(octavesWork, rollWork, rollShiftWork));
 		// Only a key shown lit, lit by a reader or sounded by my own cable
 		// can change, as with the bands below: those shown first, keeping
 		// the ones still lit, then the ones lit now joining the list.
@@ -1061,29 +1071,24 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		groupNow.store(colorRead >= 0 ? colorRead : litByWork >= 0 ? litByWork : read ? std::max(shownColorWork, 0) : -1,
 		               std::memory_order_relaxed);
 	}
-	/** A pitch snapped as my own cable's is: passed as it came with no
-	note lit, else to the nearest note of the pattern. */
-	/** The same in volts: a divider's line as the line itself, never by way
-	of semitones, so a line in is that line out at any count (twelve times a
-	line over twelve is a float off it at seven parts). */
+	/** A pitch snapped as my own cable's is, in volts: a divider's line as
+	the line itself, never by way of semitones, so a line in is that line out
+	at any count (twelve times a line over twelve is a float off it at seven
+	parts); a note of the pattern with its key's cents; unquantized, passed
+	as it came, through its semitones. */
 	float snappedVolts(float v) const {
-		return scale.divides()                  ? Divider::of(scale).snap(v)
-		       : scale.any() && !scale.spread ? scale.tunedVolts(snappedNote(v))
-		                                      : snapped(v) / 12.f;
-	}
-	float snapped(float v) const {
 		if (scale.divides())
-			return 12.f * Divider::of(scale).snap(v);
-		return !scale.any()   ? v * 12.f
-		       : scale.spread ? (float)nearestSpread(scale, v * 12.f + (float)transposeWork)
-		                      : scale.tunedSemis(degreeMoved(scale, nearestInScale(v * 12.f + (float)transposeWork, scale)));
+			return Divider::of(scale).snap(v);
+		// Unquantized, through semitones and back rather than plain v: the trip
+		// moves the last bit of about one float in six, and what the jack has
+		// always given keeps that bit.
+		return scale.any() ? scale.tunedVolts(snappedNote(v)) : v * 12.f / 12.f;
 	}
 	/** The whole semitone a pitch is snapped to, its cents aside, for the
-	key it lights. */
+	key it lights: moved by the transpose first where there is a pattern, as
+	`act` moves a reader's. */
 	int snappedNote(float v) const {
-		return !scale.any()   ? (int)std::round(v * 12.f)
-		       : scale.spread ? nearestSpread(scale, v * 12.f + (float)transposeWork)
-		                      : degreeMoved(scale, nearestInScale(v * 12.f + (float)transposeWork, scale));
+		return nearestNote(scale, scale.any() ? v * 12.f + (float)transposeWork : v * 12.f);
 	}
 	void publishJack() override {
 		const bool ownPitch = ownCable();
@@ -1331,15 +1336,16 @@ struct RollOrient : Widget {
 		return false;
 	}
 	void step() override {
-		shown = qnt && relaxed(qnt->rollNow) && relaxed(qnt->octavesNow) > 0 && (qnt->orientHeld || peeked());
+		shown = qnt && qnt->showsRoll() && (qnt->orientHeld || peeked());
 		Widget::step();
 	}
 	void drawLayer(const DrawArgs& args, int layer) override {
 		Widget::drawLayer(args, layer);
 		if (layer != 1 || !qnt || !shown)
 			return;
-		const int oct = relaxed(qnt->octavesNow);
-		const int shift = relaxed(qnt->rollShiftNow);
+		const Qnt::Shown sh = qnt->shownNow();
+		const int oct = sh.octaves;
+		const int shift = sh.shift;
 		std::shared_ptr<Font> font = plateFont();
 		if (!font || oct <= 0)
 			return;
@@ -1462,7 +1468,7 @@ struct QntHead : ScreenParam {
 	/** Whether the count is a keyboard's transpose, which carries a unit. */
 	bool keyboard() {
 		Qnt* q = qnt();
-		return q && !q->showsDivider() && !relaxed(q->rollNow);
+		return q && !q->showsDivider() && !q->shownNow().roll;
 	}
 	void follow() {
 		Qnt* q = qnt();
@@ -1940,16 +1946,16 @@ std::string KeyQuantity::getString() {
 	Qnt* k = dynamic_cast<Qnt*>(module);
 	if (!k || key < 0)
 		return getLabel();
-	const bool roll = relaxed(k->rollNow);
-	ParamQuantity* at =
-		k->paramQuantities[Qnt::keyParamIn(key, roll, std::max(1, (int)relaxed(k->octavesNow)), relaxed(k->rollShiftNow))];
+	const Qnt::Shown sh = k->shownNow();
+	const bool roll = sh.roll;
+	ParamQuantity* at = k->paramQuantities[Qnt::keyParamIn(key, roll, std::max(1, sh.octaves), sh.shift)];
 	// A keyboard's key is named as its letter reads, by the transpose in
 	// semitones (`movedBy`, QntKeys.hpp), the note it now sounds. Its
 	// pattern repeats every so many octaves from C4, so a key past C9, the
 	// top of what a jack plays, is named a period down, where it sounds:
 	// a ten-octave keyboard's keys over C9 are C#-1 to B3, not C#9 to B13.
-	int semis = key + k->movedBy(k->scaleNow.load());
-	const int period = 12 * std::max(1, (int)relaxed(k->octavesNow));
+	int semis = key + Qnt::movedBy(sh);
+	const int period = 12 * std::max(1, sh.octaves);
 	while (semis > Qnt::ROLL_BELOW) // C9, the roll's top as C-1 is its foot
 		semis -= period;
 	while (semis < -Qnt::ROLL_BELOW)
@@ -2017,7 +2023,7 @@ struct QntWidget : MemberWidget {
 		// panel itself is the widget hovered.
 		if (qnt && keysScreen && APP->scene && APP->scene->rack &&
 		    keysScreen->box.contains(APP->scene->rack->getMousePos().minus(box.pos)))
-			return qnt->showsDivider() ? nullptr : &screens[relaxed(qnt->rollNow) ? 1 : 0][relaxed(qnt->peersUi) ? 1 : 0];
+			return qnt->showsDivider() ? nullptr : &screens[qnt->shownNow().roll ? 1 : 0][relaxed(qnt->peersUi) ? 1 : 0];
 		return nullptr;
 	}
 	/** Whether a CV stands to my right in the lane I open
@@ -2050,6 +2056,7 @@ struct QntWidget : MemberWidget {
 	/** What only the UI knows of my colour: the cable arriving and the bond;
 	the arrows shown while the hand is over me; and the mode, for the title. */
 	void step() override {
+		std::vector<Qnt*> block;
 		if (qnt) {
 			qnt->inRGB.store(cableColorOn(getInput(Qnt::IN_INPUT)), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this);
@@ -2059,7 +2066,7 @@ struct QntWidget : MemberWidget {
 			// while a reader walks the block: it claims every member, none
 			// stands down for its neighbour, and the one under its playhead
 			// is the scale the rig hears, so the walk alone says which.
-			const std::vector<Qnt*> block = APP->scene && APP->scene->rack ? QntShaper::blockOf(qnt) : std::vector<Qnt*>(1, qnt);
+			block = APP->scene && APP->scene->rack ? QntShaper::blockOf(qnt) : std::vector<Qnt*>(1, qnt);
 			qnt->peersUi.store(block.size() > 1, std::memory_order_relaxed);
 			const bool cvs = cvsRight(run);
 			qnt->cvsRightUi.store(block.back() == qnt && cvs, std::memory_order_relaxed);
@@ -2076,7 +2083,7 @@ struct QntWidget : MemberWidget {
 				qnt->hover();
 		}
 		arrows.show(this);
-		keepOneMode();
+		keepOneMode(block);
 		MemberWidget::step();
 	}
 	/** Every Qnt of `block` not in mode `to` taken there (`modeWith`), its
@@ -2112,11 +2119,11 @@ struct QntWidget : MemberWidget {
 	by no step of the hand's, a patch loaded or a param set from outside, is
 	put right with no undo of its own, which would undo into the mix and be
 	put right again. Nothing is asked while a drag is going, a module passing
-	over a block on its way being no bond. */
-	void keepOneMode() {
+	over a block on its way being no bond. `block` is mine, as `step` found
+	it this frame. */
+	void keepOneMode(const std::vector<Qnt*>& block) {
 		if (!qnt || APP->event->getDraggedWidget())
 			return;
-		const std::vector<Qnt*> block = QntShaper::blockOf(qnt);
 		if (block.front() != qnt)
 			return;
 		history::Action* placing = structuralStep();

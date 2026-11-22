@@ -19,7 +19,7 @@ module, so most of it can be tested as relations between functions. */
 
 namespace rig {
 
-/** A CV's reach: its window is minus this to this, in volts, and a Atn's
+/** A CV's reach: its window is minus this to this, in volts, and an Atn's
 top runs the same way. Ten volts either side of nought is the whole of what
 a Rack cable carries, so a CV on its own passes anything as it is. */
 const float CV_VOLTS = 10.f;
@@ -172,7 +172,9 @@ struct Scale {
 published under a generation counter, odd while being written, as a CV's
 mapping is, so a screen copies and retries until it has a whole one and keeps
 its last whole copy if the engine is mid-write every try. The words alone once
-went without it, and a read could take new keys with an old degree count. */
+went without it, and a read could take new keys with an old degree count.
+Its owner may publish a word of its own beside the scale under the same
+counter (`Qnt::Shown`), which a screen then reads whole with it. */
 struct ScaleAtomic {
 	// The octave count in the low byte of the first word, then twelve bits
 	// an octave in sixteen: three octaves in the first word and four in
@@ -181,11 +183,16 @@ struct ScaleAtomic {
 	std::atomic<uint64_t> w[WORDS] = {};
 	std::atomic<int8_t> degrees{0}; // a keyboard's transpose by degrees, beside the words
 	std::atomic<uint16_t> divLaw{0}; // a divider's law and bend, beside them too (`lawWord`)
+	std::atomic<uint32_t> owner;     // the owner's word, beside them too
 	std::atomic<uint32_t> gen{0};
 	mutable Scale last; // the UI's last whole copy, written only by load()
+	mutable uint32_t lastOwner;
 	uint64_t sent[WORDS] = {}; // the writer's copy of what it last stored
 	int8_t sentDegrees = 0;
 	uint16_t sentLaw = 0;
+	uint32_t sentOwner;
+	/** The owner's word as it reads before the first store. */
+	explicit ScaleAtomic(uint32_t ownerAtStart = 0) : owner(ownerAtStart), lastOwner(ownerAtStart), sentOwner(ownerAtStart) {}
 	/** A divider's law over its bend's byte, one word. */
 	static uint16_t lawWord(const Scale& s) { return (uint16_t)((s.harmonic ? 1u : 0u) << 8 | (uint8_t)s.bend); }
 	static_assert(3 + 4 * (WORDS - 1) >= MAX_OCTAVES, "ScaleAtomic has no room for every octave");
@@ -193,7 +200,7 @@ struct ScaleAtomic {
 		word = i < 3 ? 0 : 1 + (i - 3) / 4;
 		shift = i < 3 ? 8 + 16 * i : 16 * ((i - 3) % 4);
 	}
-	void store(const Scale& s) {
+	void store(const Scale& s, uint32_t ownerWord = 0) {
 		uint64_t x[WORDS] = {(uint64_t)(uint8_t)s.octaves, 0, 0};
 		for (int i = 0; i < MAX_OCTAVES; i++) {
 			int word, shift;
@@ -212,7 +219,7 @@ struct ScaleAtomic {
 		// so a publish the host leaves out of a wake is the publish it made;
 		// asked of the writer's own copy, never of the atomics it stores.
 		const uint16_t law = lawWord(s);
-		bool same = sentDegrees == s.degrees && sentLaw == law;
+		bool same = sentDegrees == s.degrees && sentLaw == law && sentOwner == ownerWord;
 		for (int k = 0; k < WORDS && same; k++)
 			same = sent[k] == x[k];
 		if (same)
@@ -221,18 +228,21 @@ struct ScaleAtomic {
 			sent[k] = x[k];
 		sentDegrees = s.degrees;
 		sentLaw = law;
+		sentOwner = ownerWord;
 		gen.fetch_add(1, std::memory_order_release); // odd: writing
 		std::atomic_thread_fence(std::memory_order_release);
 		for (int k = 0; k < WORDS; k++)
 			w[k].store(x[k], std::memory_order_relaxed);
 		degrees.store(s.degrees, std::memory_order_relaxed);
 		divLaw.store(law, std::memory_order_relaxed);
+		owner.store(ownerWord, std::memory_order_relaxed);
 		gen.fetch_add(1, std::memory_order_release); // even: whole
 	}
-	Scale load() const {
+	Scale load(uint32_t* ownerWord = nullptr) const {
 		uint64_t x[WORDS];
 		int8_t deg = 0;
 		uint16_t law = 0;
+		uint32_t own = 0;
 		bool whole = false;
 		for (int attempt = 0; attempt < 4 && !whole; attempt++) {
 			const uint32_t g0 = gen.load(std::memory_order_acquire);
@@ -242,11 +252,15 @@ struct ScaleAtomic {
 				x[k] = relaxed(w[k]);
 			deg = relaxed(degrees);
 			law = relaxed(divLaw);
+			own = relaxed(owner);
 			std::atomic_thread_fence(std::memory_order_acquire);
 			whole = relaxed(gen) == g0;
 		}
-		if (!whole)
+		if (!whole) {
+			if (ownerWord)
+				*ownerWord = lastOwner;
 			return last;
+		}
 		Scale s;
 		s.octaves = (int8_t)clamp((int)(x[0] & 0xff), 0, MAX_OCTAVES);
 		for (int i = 0; i < MAX_OCTAVES; i++) {
@@ -262,6 +276,9 @@ struct ScaleAtomic {
 		s.harmonic = (law >> 8) & 1;
 		s.bend = (int8_t)(uint8_t)(law & 0xff);
 		last = s;
+		lastOwner = own;
+		if (ownerWord)
+			*ownerWord = own;
 		return s;
 	}
 };
@@ -626,23 +643,18 @@ inline int degreeMoved(const Scale& sc, int note, bool back = false) {
 		return note;
 	return stepInScale(sc, snapToScale(note, sc), back ? -sc.degrees : sc.degrees);
 }
-/** A transpose by degrees as far as it reaches: the pattern's root moved
-at most `semis` semitones either way, so a count asked past it holds at the
-last note of the pattern within them. Counted on the keys as set, `base` at
-nought. The engine clamps by it and the stroke folds by it, so a drag past the
-end turns back at once. */
 /** The notes of a pattern in one period, which is how many degrees move
 every note it gives out by that period exactly: seven on the white keys,
 five on a pentatonic, twelve on two octaves of the two. Nought where there is
 no pattern to count, or a roll, which never repeats. */
 inline int notesInPeriod(const Scale& sc) {
-	if (!sc.any() || sc.spread)
-		return 0;
-	int n = 0;
-	for (int k = 0; k < sc.period(); k++)
-		n += sc.has(k) ? 1 : 0;
-	return n;
+	return sc.any() && !sc.spread ? keysIn(sc) : 0;
 }
+/** A transpose by degrees as far as it reaches: the pattern's root moved
+at most `semis` semitones either way, so a count asked past it holds at the
+last note of the pattern within them. Counted on the keys as set, `base` at
+nought. The engine clamps by it and the stroke folds by it, so a drag past the
+end turns back at once. */
 inline int degreeReach(const Scale& sc, int deg, int semis) {
 	if (!sc.any() || sc.spread)
 		return 0;
@@ -700,6 +712,16 @@ inline int nearestSpread(const Scale& s, float semis) {
 		if (std::fabs((float)notes[i] - semis) <= std::fabs((float)best - semis))
 			best = notes[i];
 	return best;
+}
+
+/** The note a scale snaps a pitch to, in whole semitones from C4: a roll's
+nearest, a keyboard's nearest moved by its transpose by degrees
+(`degreeMoved`), else the pitch rounded. The one rule a Qnt's own cable and a
+reader's cable through it (`quantStage`) are snapped by. */
+inline int nearestNote(const Scale& sc, float semis) {
+	return sc.spread && sc.any() ? nearestSpread(sc, semis)
+	       : sc.any()            ? degreeMoved(sc, nearestInScale(semis, sc))
+	                             : (int)std::round(semis);
 }
 
 /** The same, preferring `root` as the note it is named on: the white keys

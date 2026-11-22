@@ -44,7 +44,7 @@ struct ArcPoint : Hovered<LevelParam> {
 	engine::ParamQuantity* target() {
 		if (sharedMove && end) {
 			Crv* m = crv();
-			Crv* R = m ? besideIn(this, m, 1) : nullptr;
+			Crv* R = m ? besideIn(blockOf(this, m), m, 1) : nullptr;
 			if (R)
 				return R->paramQuantities[Crv::START_PARAM];
 		}
@@ -158,7 +158,7 @@ struct ArcPoint : Hovered<LevelParam> {
 		}
 		activePoint() = this;
 		if (sharedMove)
-			if (Crv* R = besideIn(this, m, 1))
+			if (Crv* R = besideIn(blockOf(this, m), m, 1))
 				R->touch();
 	}
 	/** The points a double click may touch, as they stood before its first
@@ -173,7 +173,8 @@ struct ArcPoint : Hovered<LevelParam> {
 	Before before[3] = {};
 	int beforeStroke = -1;
 	void noteBefore(Crv* m) {
-		Crv* cs[3] = {besideIn(this, m, -1), m, besideIn(this, m, 1)};
+		const std::vector<Crv*> block = blockOf(this, m);
+		Crv* cs[3] = {besideIn(block, m, -1), m, besideIn(block, m, 1)};
 		for (int i = 0; i < 3; i++)
 			before[i] = cs[i] ? Before{HeldModule(cs[i]), cs[i]->params[Crv::START_PARAM].getValue(),
 			                           cs[i]->params[Crv::END_PARAM].getValue(), cs[i]->params[Crv::LINK_PARAM].getValue()}
@@ -202,7 +203,7 @@ struct ArcPoint : Hovered<LevelParam> {
 		// point is the next start, with the next start's undo in the stroke.
 		const bool joined = press && m && joinedHere(m);
 		if (joined && end) {
-			Crv* R = besideIn(this, m, 1);
+			Crv* R = besideIn(blockOf(this, m), m, 1);
 			if (R) {
 				const float was = R->params[Crv::START_PARAM].getValue();
 				sharedMove = true;
@@ -264,7 +265,10 @@ struct ArcPoint : Hovered<LevelParam> {
 					c->params[Crv::LINK_PARAM].setValue(b.link);
 				}
 		beforeStroke = -1;
-		Crv* other = besideIn(this, m, end ? 1 : -1);
+		// The block once for the gesture: a double click moves params, never
+		// who stands beside whom.
+		const std::vector<Crv*> block = blockOf(this, m);
+		Crv* other = besideIn(block, m, end ? 1 : -1);
 		if (!other)
 			return;
 		Crv* L = end ? m : other;
@@ -275,7 +279,7 @@ struct ArcPoint : Hovered<LevelParam> {
 		// Parted, the end stays at the shared point as it stood in force, the
 		// volts IN holds where it holds the start; joined, a start IN holds
 		// does not come to the end, the cable having the shared point.
-		if (R->params[Crv::LINK_PARAM].getValue() > 0.5f) {
+		if (R->switchOn(Crv::LINK_PARAM)) {
 			L->params[Crv::END_PARAM].setValue(R->startInForce());
 			R->params[Crv::LINK_PARAM].setValue(0.f);
 		}
@@ -291,17 +295,16 @@ struct ArcPoint : Hovered<LevelParam> {
 		// With command held, every other join of the block made the same, so
 		// a block becomes one continuous loop or falls apart into separate
 		// arcs at a stroke.
-		const bool join = R->params[Crv::LINK_PARAM].getValue() > 0.5f;
+		const bool join = R->switchOn(Crv::LINK_PARAM);
 		if (!(join ? Hand::among(G_CRV_JOIN_ALL) : Hand::among(G_CRV_SPLIT_ALL)))
 			return;
-		const std::vector<Crv*> b = blockOf(this, m);
-		const int n = (int)b.size();
+		const int n = (int)block.size();
 		for (int k = 0; k < n && n >= 2; k++) {
-			Crv* Rk = b[k];
-			Crv* Lk = b[(k + n - 1) % n];
+			Crv* Rk = block[k];
+			Crv* Lk = block[(k + n - 1) % n];
 			if (Rk == R)
 				continue;
-			const bool linked = Rk->params[Crv::LINK_PARAM].getValue() > 0.5f;
+			const bool linked = Rk->switchOn(Crv::LINK_PARAM);
 			if (linked == join)
 				continue;
 			swept.note(Rk, Crv::LINK_PARAM);
@@ -333,7 +336,7 @@ struct ArcPoint : Hovered<LevelParam> {
 	bool partOfDiamond(Crv* m) {
 		if (!joinedHere(m))
 			return false;
-		Crv* partner = besideIn(this, m, end ? 1 : -1);
+		Crv* partner = besideIn(blockOf(this, m), m, end ? 1 : -1);
 		ArcPoint* h = hoveredPoint();
 		if (h && h != this && h->end != end && h->crv() == partner)
 			return true;
@@ -344,7 +347,7 @@ struct ArcPoint : Hovered<LevelParam> {
 		Crv* m = crv();
 		if (!p || p == this || p->end == end || !m || !joinedHere(m))
 			return false;
-		return besideIn(this, m, end ? 1 : -1) == p->crv();
+		return besideIn(blockOf(this, m), m, end ? 1 : -1) == p->crv();
 	}
 	/** My triangle, on my screen's edge at my point, while it is
 	under the pointer, held, or half of a diamond lit from beside; painted by

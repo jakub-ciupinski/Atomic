@@ -614,11 +614,10 @@ inline const std::vector<ModuleWidget*>* runOf(ModuleWidget* mine, bool asEngine
 }
 
 /** A RIG's molecule: every module of ours bonded to the right of `mine`, as
-the engine runs it, across a GAP, a bypassed module or anything else ending
-a run,
-the GAPs in it. Worked out from where the panels stand, as `runOf` is, but
-walked on past where a run parts. Moved from RigWidget as it stood,
-its half-pixel allowance between two panels' edges with it. */
+the engine runs it, the GAPs in it, up to a bypassed module or one that
+does not bond to its left. Worked out from where the panels stand, as `runOf` is, but
+walked on past where a run parts; two panels touch where their edges are
+less than half a pixel apart. */
 inline std::vector<ModuleWidget*> moleculeOf(ModuleWidget* mine) {
 	std::vector<ModuleWidget*> out;
 	if (!APP->scene || !APP->scene->rack)
@@ -680,15 +679,19 @@ inline std::vector<T*> touchingOf(ModuleWidget* mine, T* me) {
 
 /** Whether another module of kind T stands anywhere in `me`'s run, none
 for a bypassed `me`, which stands in none: what a sweep can reach
-(`LevelParam::peersBetween`), for its hint piece. */
+(`LevelParam::peersBetween`), for its hint piece. `sharesRun` asks it of
+a run already in hand, the engine's run of `me`'s panel. */
 template <class T>
-inline bool sharesRunOf(ModuleWidget* mine, T* me) {
-	const std::vector<ModuleWidget*>* run = mine && me ? runOf(mine, true) : nullptr;
+inline bool sharesRun(const std::vector<ModuleWidget*>* run, T* me) {
 	if (run)
 		for (ModuleWidget* x : *run)
 			if (x->module && x->module != me && dynamic_cast<T*>(x->module))
 				return true;
 	return false;
+}
+template <class T>
+inline bool sharesRunOf(ModuleWidget* mine, T* me) {
+	return sharesRun(mine && me ? runOf(mine, true) : nullptr, me);
 }
 
 /** The same question asked by a widget about itself: what is above me in the

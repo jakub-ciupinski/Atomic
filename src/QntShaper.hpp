@@ -124,7 +124,7 @@ struct QntShaper {
 	/** Whether a Qnt is a roll with the same notes on it as mine: the rolls
 	a stroke moving notes carries along together. */
 	static bool sameRoll(Qnt* a, Qnt* b) {
-		if (!relaxed(b->rollNow) || relaxed(b->octavesNow) <= 0)
+		if (!b->showsRoll())
 			return false;
 		for (int p : rollSwitches())
 			if ((a->params[p].getValue() > 0.5f) != (b->params[p].getValue() > 0.5f))
@@ -195,7 +195,7 @@ struct QntShaper {
 				}
 				else {
 					// A keyboard's pattern, its own keys round its octaves.
-					const int n = std::max(1, (int)relaxed(q->octavesNow));
+					const int n = std::max(1, q->shownNow().octaves);
 					for (int key = 0; key < 12 * n; key++)
 						row.push_back({HeldModule(q), Qnt::keyParam(key), q->params[Qnt::keyParam(key)].getValue()});
 				}
@@ -213,7 +213,7 @@ struct QntShaper {
 		// A cent is finer still: the whole ninety-nine in thirty millimetres.
 		const float pitch = mm2px(shape == SHAPE_OCTAVES ? 4.f : shape == SHAPE_TUNE ? 0.3f : 1.8f);
 		int steps = (int)std::round((shapeY - APP->scene->rack->getMousePos().y) / pitch);
-		const int n = std::max(1, (int)relaxed(k->octavesNow));
+		const int n = std::max(1, k->shownNow().octaves);
 		// Past an end the stroke takes hold again where it stands, as every
 		// screen does, so turning back moves the value at once: the anchor
 		// slides by the steps the end refused.
@@ -238,8 +238,10 @@ struct QntShaper {
 			// The roll is taken hold of: up the screen carries what is on it
 			// up, as a hand dragging paper does, so the window goes down the
 			// piano; the other way reads backwards.
-			const int w = Qnt::rollShiftIn(shapeFrom - steps, n);
-			refuse(w, shapeFrom - steps); // the window runs the other way
+			// The window runs the other way from the stroke, so both sides
+			// of what the end refused are turned round with it.
+			const int wanted = shapeFrom - steps, w = Qnt::rollShiftIn(wanted, n);
+			refuse(-wanted, -w);
 			for (Qnt* q : members())
 				q->params[Qnt::ROLL_PARAM].setValue((float)w);
 			say("Roll from: " + noteName(Qnt::rollBase(n, w)));

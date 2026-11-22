@@ -35,8 +35,7 @@ const float HEAD_STRIP_PX = 8.f;
 
 /** The RIG's hand: its ground from an Atn's screen's foot (Atn.cpp,
 `ATN_SCREEN_H`) down to the air over SCENE, where a CRV's screen closes
-(Crv.cpp, `ARC_H`), four rows of it, and a row the size every RIG button is
-(Rig.cpp) and the GAP's two are (Gap.cpp), so the two read as one family. */
+(Crv.cpp, `ARC_H`), four rows of it, each the size of a RIG button (Rig.cpp). */
 const float HAND_TOP = SCREEN_Y + 55.88f;
 const float HAND_FOOT = seqCapY(4) - SCREEN_AIR;
 const int HAND_ROWS = 4;

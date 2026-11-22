@@ -367,7 +367,8 @@ struct Node {
 	one, and a different one is indistinguishable from a bug.
 
 	It is not a speed a module claims, and it is not a column in the
-	manifest. It is a short list: the Seq, the Poly, the Mix, the OUT Atn and the Clock. */
+	manifest. It is a short list: the Seq, the Poly, the Mix, the OUT Atn, the
+	Clock and a CV lighting a key. */
 	virtual bool atEveryWake() { return false; }
 	/** Called over the finished parse, every node once a pass, with the
 	nodes to its left and no others: pass nought for what a node gathers
@@ -436,8 +437,6 @@ private:
 
 /** The parse: slots filled, claims made, traits settled, left to right. */
 void build(const std::vector<Node*>& rig);
-/** Whether anything in the rig needs evaluating. */
-bool anyDirty(const std::vector<Node*>& rig);
 /** One evaluation of the rig, children before parents: clear the reads,
 then evaluate the nodes that need it in rig order, passing the change on to
 whoever reads a node whose answer moved, and hand the screens the lot. */

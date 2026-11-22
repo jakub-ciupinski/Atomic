@@ -277,6 +277,11 @@ struct RigCore : Module, Bonder {
 	saves beside them (`settingsData`), by place, as the file holds them. */
 	std::vector<std::vector<float>> cleanParams;
 	std::vector<std::string> cleanData;
+	/** The last answer of `scenesClean`, and what it was asked of: the bank's
+	generation and the ids. */
+	bool cleanAsked = false, cleanAnswer = false;
+	uint32_t cleanAskedGen = 0;
+	std::set<int64_t> cleanAskedIds;
 
 	// The engine's own, read by nothing else.
 	uint32_t seenGen = 0;
@@ -784,6 +789,7 @@ struct RigCore : Module, Bonder {
 		cleanKnown = true;
 		cleanModels = models;
 		cleanScenes = held;
+		cleanAsked = false;
 		cleanNote = heldNote;
 		cleanParams = params;
 		cleanData = data;
@@ -803,6 +809,22 @@ struct RigCore : Module, Bonder {
 		std::string out = text ? text : "";
 		free(text);
 		return out;
+	}
+	/** Whether the scenes stored, cut to the modules `ids` names, are the
+	file's (`cleanScenes`). SAVE asks it every frame, so the bank is copied
+	and compared, under the lock the audio thread tries, only when the bank,
+	`ids` or the file's scenes have moved since the last answer: every change
+	to the bank moves its generation (`changed`), and the file's scenes are
+	set by `markClean` or with a change to the bank (`setState`, `wipe`). */
+	bool scenesClean(const std::set<int64_t>& ids) {
+		const uint32_t g = generation.load(std::memory_order_relaxed);
+		if (!cleanAsked || g != cleanAskedGen || ids != cleanAskedIds) {
+			cleanAnswer = scenesOn(ids) == cleanScenes;
+			cleanAsked = true;
+			cleanAskedGen = g;
+			cleanAskedIds = ids;
+		}
+		return cleanAnswer;
 	}
 	/** The scenes stored, each cut to the modules `ids` names. */
 	std::vector<Scene> scenesOn(const std::set<int64_t>& ids) {

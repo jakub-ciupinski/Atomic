@@ -19,13 +19,6 @@ struct AtnLane : LevelParam {
 	int lane() override { return offsetLane ? 1 : 0; }
 	Atn* getAtn() { return paramModule<Atn>(this); }
 
-	/** The travel, minus one to one: the offset's param is that already and
-	the gain's is volts over ten. */
-	float travel() {
-		engine::ParamQuantity* pq = getParamQuantity();
-		const float v = pq ? pq->getValue() : (offsetLane ? 0.f : CV_VOLTS);
-		return offsetLane ? clamp(v, -1.f, 1.f) : clamp(v / CV_VOLTS, -1.f, 1.f);
-	}
 	bool jackLive() {
 		Atn* r = getAtn();
 		return r && (offsetLane ? r->ofsCv.live() : r->gainCv.live());
@@ -145,11 +138,6 @@ struct AtnLane : LevelParam {
 		Atn* r = getAtn();
 		return r ? r->spanScale() : Scale();
 	}
-	/** The scale in reach, as the last wake published it. */
-	Scale snap() {
-		Atn* r = getAtn();
-		return r ? r->snapScale.load() : Scale();
-	}
 
 	/** What the hand is asking for, Rack's own convention: a plain stroke is
 	continuous, shift held lands on the coarse steps, whole volts or octaves,
@@ -247,8 +235,9 @@ struct AtnLane : LevelParam {
 	bool spanEndOnScale(int semis, const Scale& scale) {
 		Atn* r = getAtn();
 		// The offset as published, moved along the pattern as a CV's note is:
-		// never `ofsVolts`, which on the UI thread would write the engine's
-		// own working field.
+		// never `ofsVolts`, which reads the wake's own working fields
+		// (`ofs.unitWork`, `snapWork`, `winLeft`), plain fields the UI thread
+		// must not read.
 		const int ofsSemis = r ? (int)std::round(r->ofsAmount() * (float)OfsCore::SEMI_REACH) : 0;
 		return spanEndsOnScale(semis, scale, ofsSemis);
 	}
@@ -495,8 +484,7 @@ struct AtnLane : LevelParam {
 	of one size on both lanes and lit in the cable's colour, with a glow of it
 	around the screen, while the lane's own jack drives something past the
 	Atn (`reachesNothing`). The operator is on
-	the plate under the glass. Six other handles were tried beside this
-	one. */
+	the plate under the glass. */
 	/** Where a handle standing at this height is drawn: the whole lane's
 	width but a hair, and never past the working face inside the bevel, so
 	a gain wide open stands its handle on the face's edge rather than over
@@ -562,9 +550,9 @@ struct AtnLane : LevelParam {
 	/** The fader the cable has made, drawn under the handle: a slim arrow in
 	the jack's cable colour out of the handle's edge, its point on the height
 	the fader would stand at had the hand put it there. Nothing is drawn while
-	the jack is empty or the cable leaves the fader where it is. A faint
-	second handle, a rail down the lane's edge and a fading wake were tried
-	beside it, and the arrow was kept. */
+	the jack is empty or the cable leaves the fader where it is. The arrow
+	reads better than a faint second handle, a rail down the lane's edge or
+	a fading wake. */
 	void drawModulation(NVGcontext* vg, float at) {
 		if (!getAtn() || !jackLive())
 			return;

@@ -4,9 +4,10 @@
 #include "GatherFace.hpp"
 #include "Stack.hpp"
 
-/** Poly: mono outputs to its left, packed into one polyphonic cable.
+/** Poly: every channel the modules to its left give, packed into one
+polyphonic cable.
 
-It hunts for single outputs to its left and bundles every one of a kind. The
+It hunts for outputs to its left and bundles every one of a kind. The
 kind is that of the nearest module to its left that a Poly can bundle and that
 no Poly to its left has bundled already; the members are every module of that
 kind to its left, at any distance, that no Poly to its left has taken, the
@@ -370,38 +371,11 @@ std::string PolyRowQuantity::getDisplayValueString() {
 /** The body: a bar a channel, sixteen rows, bipolar about the middle, each in
 the colour of the module it came from, white for a cable from outside; rows
 past the count are ghosts. */
-struct PolyScreen : Screen {
-	Poly* module = nullptr;
-	void drawLayer(const DrawArgs& args, int layer) override {
-		Screen::drawLayer(args, layer);
-		if (layer != 1)
-			return;
-		NVGcontext* vg = args.vg;
-		int n = 4;
-		uint64_t cols = 0;
-		// Each bar's span, below nought and above it (`HeldSpan`).
-		float foot[CHANNELS] = {0.f, -2.f, 0.f, 0.f}, top[CHANNELS] = {1.f, 0.f, 3.f, 0.5f};
-		if (module) {
-			cols = relaxed(module->colorsNow);
-			n = relaxed(module->header) & 0xff;
-			for (int c = 0; c < CHANNELS; c++)
-				unpackSpan(relaxed(module->shown[c]), foot[c], top[c]);
-		}
-		const GatherRows r(box.size, stripShown(module));
-		const float inset = r.inset, h = r.h;
-		const float w = box.size.x - 2 * inset;
-		for (int c = 0; c < CHANNELS; c++) {
-			const float y = r.y(c) + (r.pitch - h) / 2.f;
-			if (c >= n) {
-				paintEmptyRow(vg, inset, y, w, h);
-				continue;
-			}
-			const NVGcolor cc = gatheredRowColor(module ? relaxed(module->rgbNow[c]) : 0, cols, c);
-			// A row left out of the jack keeps its level, faint, on a line.
-			const bool on = !module || module->rowOn(c);
-			const float t = on ? h : LINE_PX;
-			drawSpanBar(vg, inset, y + (h - t) / 2.f, w, t, foot[c] / 10.f, top[c] / 10.f, on ? cc : color::alpha(cc, GATHER_FAINT));
-		}
+struct PolyScreen : GatherBody<Poly, CHANNELS> {
+	PolyScreen() : GatherBody(4, {0.f, -2.f, 0.f, 0.f}, {1.f, 0.f, 3.f, 0.5f}) {}
+	void drawBody(NVGcontext* vg, const GatherRows& r) override {
+		// A row left out of the jack keeps its level, faint, on a line.
+		walk(vg, r, [&](int c, NVGcolor cc) { paintBar(vg, r, c, cc, !module || module->rowOn(c) ? 1.f : 0.f); });
 		// The Seqs arpeggiating my jack: each one's playhead across the row
 		// its channel came from, the line and glow a Trg's ring carries
 		// (`paintPlayhead`), several on one row clustered about its middle
@@ -428,10 +402,6 @@ hover names where it came from and where it goes. It is a gesture, as the Seq's 
 is two clicks. A row with no channel in it is not there for the hand: no
 outline, no hover, no click. */
 struct PolyRow : GatherRow<Poly, ParamWidget> {
-	bool live() override {
-		Poly* m = dynamic_cast<Poly*>(module);
-		return m && index < relaxed(m->srcNNow);
-	}
 	void onDoubleClick(const DoubleClickEvent& e) override { e.consume(this); }
 	void onButton(const ButtonEvent& e) override {
 		if (!live())
@@ -441,21 +411,17 @@ struct PolyRow : GatherRow<Poly, ParamWidget> {
 			// The press flips this row, and the stroke paints its value
 			// over every row it is dragged across (`RowPaint`).
 			paintBegin(this, pq->getValue() > 0.5f ? 0.f : 1.f);
-			wakePoly();
+			wake();
 			e.consume(this);
 			return;
 		}
 		ParamWidget::onButton(e);
 	}
-	void wakePoly() {
-		if (Poly* m = dynamic_cast<Poly*>(module))
-			m->wake();
-	}
 	void onDragStart(const DragStartEvent& e) override { e.consume(this); }
 	void onDragEnter(const DragEnterEvent& e) override {
 		GatherRow::onDragEnter(e);
 		if (live() && paintOver(e.origin, this))
-			wakePoly();
+			wake();
 	}
 	void onDragEnd(const DragEndEvent& e) override { paintEnd("change rows"); }
 };

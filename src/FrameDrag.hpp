@@ -1,6 +1,7 @@
 // Atomic, a VCV Rack plugin. Copyright (C) 2026 Jakub Ciupinski.
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -10,20 +11,40 @@ of Rack, so a headless test can exercise it: a drag needs a mouse and a
 window, and no test has one. */
 namespace framedrag {
 
-/** The order in which a rigid group of modules must be re-placed so that
-every move lands in space one of its own members has already left: leftmost
-first when the group is heading left, rightmost first when it is heading
-right. The group is given left to right and `count` long; the returned
-indices are into that list.
+/** A module's place on one rack row, in whole grid steps (HP). */
+struct Slot {
+	int x, w;
+};
 
-Placing them in the wrong order asks Rack to put a module where one of its
-own neighbours still stands, and Rack, being asked politely, declines. */
-inline std::vector<int> placementOrder(int count, bool leftward) {
-	std::vector<int> order;
-	order.reserve(count);
-	for (int i = 0; i < count; i++)
-		order.push_back(leftward ? i : count - 1 - i);
-	return order;
+/** Where the other modules on a row stand once a rigid group is put down on
+it at `at`, `width` steps wide: Rack's own shove for one module placed by
+force (`RackWidget::setModulePosForce`), the group taken as that one module.
+Those whose left edge is left of the group's are pushed left, the nearest
+first, each against the last, until one is clear; the rest are pushed right
+the same way. Forcing the members one at a time instead would shove a module
+the group leaps past in between two of its members, and would write the
+rig's bonds torn between one placement and the next. `others` is every
+other module on the row, in any order. */
+inline void shove(int at, int width, std::vector<Slot>& others) {
+	std::vector<Slot*> left, right;
+	for (Slot& s : others)
+		(s.x < at ? left : right).push_back(&s);
+	std::stable_sort(left.begin(), left.end(), [](const Slot* a, const Slot* b) { return a->x > b->x; });
+	std::stable_sort(right.begin(), right.end(), [](const Slot* a, const Slot* b) { return a->x < b->x; });
+	int cursor = at;
+	for (Slot* s : left) {
+		if (s->x + s->w <= cursor)
+			break;
+		s->x = cursor - s->w;
+		cursor = s->x;
+	}
+	cursor = at + width;
+	for (Slot* s : right) {
+		if (s->x >= cursor)
+			break;
+		s->x = cursor;
+		cursor = s->x + s->w;
+	}
 }
 
 /** The pointer moves smoothly and modules do not: a drag position becomes the

@@ -326,6 +326,9 @@ struct Atn : Cartridge, Probe {
 		windowOf(g, lo, hi);
 		return clamp(v, centre + lo, centre + hi);
 	}
+	/** The module's one line: `in` at a gain of `g`, lifted by `s`, held by
+	the diode to the window that gain and offset make. */
+	float scaled(float in, float g, float s) { return held(in * g / CV_VOLTS + s, g, s); }
 	// How wide my own jack is. Rack's setChannels does nothing on a port
 	// with no cable in it, so the count cannot be read back off the port
 	// and is kept here instead, for a Poly bundling me and for the glow.
@@ -434,8 +437,8 @@ struct Atn : Cartridge, Probe {
 	ROW_SLOT_IS(M_OUT, S_SIGNAL, "signal");
 	ROW_SLOT_IS(M_OUT, S_OUT_READER, "reader");
 	/** Which of the three the parse took, which the manifest row follows:
-	the arrow and the IN jack, read at the top of every parse and nowhere
-	else, so a change of either is a change of the parse (`parseStale`).
+	the arrow and the IN jack, read at the top of every parse, so a change
+	of either is a change of the parse (`parseStale`).
 	`outParse` is the lit arrow with IN empty, a reader; `vcaParse` a cable
 	in IN, whatever the arrow says. */
 	bool outParse = false, vcaParse = false;
@@ -1060,9 +1063,9 @@ struct Atn : Cartridge, Probe {
 		// routing it never wakes me, so it asks for the tick by itself, or a
 		// routed Atn with nothing of its own would show nothing. And an OUT
 		// Atn's jack is what it reads, which moves without waking it as a
-		// cable does: without the tick its meter was fed only by a sample a
-		// touch or a stir happened to land on the control period, so a fresh
-		// OUT Atn showed nothing until a knob was nudged (atn-out-meter).
+		// cable does: without the tick its meter is fed only by a sample a
+		// touch or a stir happens to land on the control period, so a fresh
+		// OUT Atn shows nothing until a knob is nudged (atn-out-meter).
 		return Cartridge::wantsTick() || meter.falling() || cv.live() || routed.any() || outParse;
 	}
 	/** Bypassed, my meter follows what OUT now carries, as the jack's light
@@ -1215,16 +1218,13 @@ struct Atn : Cartridge, Probe {
 	/** A VCA: a cable in my own jack, and nobody having claimed the block I
 	stand in.
 
-	The claim is the third of those and was the last to be added. A reader
-	walking a block uses it as a sequential switch: the Seq has the block
-	whole and chooses one member a step, and what the chosen one is worth is
-	its settings, not its jack. Without the clause every claimed Atn with a
-	cable in its input went on being a VCA of its own, so a block of eight
-	under a Seq was eight VCAs as well as a switch: they all showed as
-	acting, which put the playhead's colour on every one of them at every
-	step instead of on the one the playhead was standing on, and they went
-	on mixing sideways underneath it. A claimed Atn is a configurator and
-	nothing else. */
+	A reader walking a block uses it as a sequential switch: the Seq has the
+	block whole and chooses one member a step, and what the chosen one is
+	worth is its settings, not its jack. A claimed Atn is a configurator and
+	nothing else: as a VCA of its own as well, a block of eight under a Seq
+	would be eight VCAs beside the switch, every one showing as acting, the
+	playhead's colour on all of them at every step instead of on the one the
+	playhead stands on, and all of them mixing sideways underneath it. */
 	bool isVca() { return cv.live() && !claimedByReader(); }
 	/** My signal: the cable in my own jack, every channel of it. A Poly's
 	channels are the OUT strips' after it, never an ordinary Atn's. */
@@ -1246,9 +1246,9 @@ struct Atn : Cartridge, Probe {
 	The CV jacks over the two lanes do not count. They drive the settings,
 	which is the configurator's own work, and a rig of Atns setting up a Seq
 	should not start putting voltage on jacks because one of them has a
-	cable on its offset. The symptom was the meter: an offset with no signal
-	under it made `peak` the whole of the offset, so a module carrying
-	nothing showed a full swing and asked for a tick every sample to show
+	cable on its offset. Counted, an offset with no signal under it would
+	make `peak` the whole of the offset, so a module carrying nothing would
+	show a full swing on its meter and ask for a tick every sample to show
 	it. */
 	bool running() {
 		// A reader walking the block does not stand me down: the Seq takes my
@@ -1292,15 +1292,8 @@ struct Atn : Cartridge, Probe {
 			const float own = cv.live() ? cv.getVoice(c) : 0.f;
 			// No rails (Signal.hpp): a cable from my jack back into the Seq's
 			// ROUTE is a loop, and a loop at a gain over one climbs until `sane`.
-			put(c, held((own + r) * gainWake / CV_VOLTS + shift, gainWake, shift));
+			put(c, scaled(own + r, gainWake, shift));
 		}
-	}
-	/** What my own jack carries as a VCA, channel one: my cable taken at my
-	top and then lifted by the offset. This is what the Atn on the right
-	takes. */
-	float vcaOut() {
-		const float shift = ofsVolts();
-		return held(cv.get() * gainWake / CV_VOLTS + shift, gainWake, shift);
 	}
 	/** The window I hand my right, boost and all: an Atn at x1.84 makes the
 	CVs past it reach 18.4 V, since nothing holds a jack to rails. */
@@ -1409,7 +1402,7 @@ struct Atn : Cartridge, Probe {
 				                            -GAIN_MAX, GAIN_MAX)
 				                    : gainWake;
 				const float s = polyOfs && c > 0 ? ofsVolts(c) : shift;
-				put(c, held(inV(c) * g / CV_VOLTS + s, g, s));
+				put(c, scaled(inV(c), g, s));
 			}
 			return;
 		}
@@ -1445,7 +1438,7 @@ struct Atn : Cartridge, Probe {
 			return 1;
 		}
 		if (jackN <= 1) {
-			v[0] = sane(outParse || claimedByReader() ? jackV[0] : vcaOut());
+			v[0] = sane(outParse || claimedByReader() ? jackV[0] : scaled(cv.get(), gainWake, ofsVolts()));
 			return 1;
 		}
 		const int n = std::min(jackN, (int)PORT_MAX_CHANNELS);
@@ -1462,8 +1455,6 @@ struct Atn : Cartridge, Probe {
 			v[c] = sane(jackV[c]);
 		return jackN;
 	}
-	/** A change of the arrow or of the cable in IN is a change of the parse,
-	which the host asks of me on the control period, as it sweeps the knobs. */
 	/** A VCA's or a lit Atn's claim on me as its peer leaves me acting,
 	since it shapes nothing in my place (`TOLD_PEER_UNSHAPED`): ATN VCA CV is
 	ATN CV to the CV.
@@ -1472,6 +1463,8 @@ struct Atn : Cartridge, Probe {
 		const uint32_t t = told();
 		return !claimed() || ((t & tree::TOLD_PEER_UNSHAPED) && !tree::walked(t));
 	}
+	/** A change of the arrow or of the cable in IN is a change of the parse,
+	which the host asks of me on the control period, as it sweeps the knobs. */
 	bool parseStale() override {
 		return cabledSet() != vcaParse || (grabSet() && !vcaParse) != outParse ||
 		       (standaloneWanted && !vcaParse && !outParse) != standaloneParse;
@@ -1624,7 +1617,7 @@ struct Atn : Cartridge, Probe {
 				put(c, held(winLeft.scale.tunedVolts(moved), gainWake, centre));
 			}
 			else
-				put(c, held(v * gainWake / CV_VOLTS + centre, gainWake, centre));
+				put(c, scaled(v, gainWake, centre));
 		}
 		outColWork = !src ? -1
 		             : stripPoly ? (stripEmptyWork ? -1 : stripPoly->feedColor(stripAt))

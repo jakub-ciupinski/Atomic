@@ -413,8 +413,8 @@ inline void blockArcs(const float* p, const float* e, const float* c, const bool
 			s.M1 = mb;
 			// The rod's slopes, for an open run's arc at nought.
 			const float t0 = d - (2.f * ma + mb) / 6.f, t1 = d + (ma + 2.f * mb) / 6.f;
-			s.m0 = d + (t0 - d);
-			s.m1 = d + (t1 - d);
+			s.m0 = t0;
+			s.m1 = t1;
 		}
 	};
 	if (all) {

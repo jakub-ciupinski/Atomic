@@ -88,8 +88,8 @@ struct AtnGlass : Widget {
 	solid colour, inside the bevel exactly as a CV's fader is, so a line of
 	the screen's black is always left above and below. Both dim with the room,
 	as every other screen's face does, so the Atn's glass never stays bright
-	in a darkened room while the screens beside it dim. A shine drawn to the
-	reach's own size, riding its edges, was tried and not liked. */
+	in a darkened room while the screens beside it dim. The face stays flat:
+	a shine drawn to the reach's own size, riding its edges, looks worse. */
 	void draw(const DrawArgs& args) override {
 		if (!gain || !offset)
 			return;
@@ -491,9 +491,9 @@ struct AtnArrow : app::Switch {
 	static constexpr float MARGIN = 0.6f; // mm, the groove's width round the lines
 	// The IN arrow's tip stands just off the jack's ring on its upper left
 	// diagonal, the shaft coming in at forty-five degrees from above and to
-	// the left. Half a millimetre off the ring
-	// sat too close to IN, so the tip stands a millimetre further off and
-	// the shaft is shorter by as much, starting where it did.
+	// the left. The tip stands a millimetre and a half off the ring, since
+	// nearer it crowds IN, and the shaft is a millimetre shorter than its
+	// 3.2 mm so that it starts at the same point.
 	static constexpr float TIP_AIR = 1.5f;                            // the tip's distance from the jack's ring, mm
 	static constexpr float REACH = 3.2f - 1.f * (float)M_SQRT1_2;     // the shaft's run, each way, mm
 	static constexpr float HEAD = 1.3f;           // each barb's run, each way, mm
@@ -625,11 +625,11 @@ struct AtnWidget : MemberWidget {
 	one undo takes back both. A cable in IN does not stop it, the switch
 	waiting under the cable for when it goes. The same shape as a POLY's
 	new cable giving its CVs back (`PolyWidget::giveBack`): a new bond or a
-	new cable resets a remembered choice. */
-	void bond() {
+	new cable resets a remembered choice. `run` is this panel's run as the
+	engine has it (`runOf`). */
+	void bond(const std::vector<ModuleWidget*>* run) {
 		if (!atn || APP->event->getDraggedWidget())
 			return;
-		const std::vector<ModuleWidget*>* run = runOf(this, true);
 		if (!run)
 			return;
 		auto me = std::find(run->begin(), run->end(), this);
@@ -680,8 +680,9 @@ struct AtnWidget : MemberWidget {
 			atn->cableRGB.store(cableColorOn(getInput(Atn::IN_INPUT)), std::memory_order_relaxed);
 			atn->vcaRGB.store(cableColorOn(getInput(Atn::VCA_INPUT)), std::memory_order_relaxed);
 			atn->ofsRGB.store(cableColorOn(getInput(Atn::OFS_CV_INPUT)), std::memory_order_relaxed);
-			atn->sweepUi.store(sharesRunOf(this, atn), std::memory_order_relaxed);
-			bond();
+			const std::vector<ModuleWidget*>* run = runOf(this, true);
+			atn->sweepUi.store(sharesRun(run, atn), std::memory_order_relaxed);
+			bond(run);
 			arrow->visible = arrow->shown();
 			rightArrow->visible = rightArrow->shown();
 		}

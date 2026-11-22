@@ -346,7 +346,7 @@ the hover, while cables are stacked in IN. */
 	std::atomic<uint64_t> cablesNow{0};
 	/** Each row's source module, by id, minus one for a cable's, for
 	`srcIdNow`. */
-	int64_t srcId[GATHER_MAX] = {};
+	int64_t srcId[ROWS] = {};
 	/** The channels that came to me past my last row, left out, for the
 	tooltip: a source gives every channel it has, a Seq's chord or a Poly's,
 	so sixteen can be passed, and a gatherer shows what it dropped. */
@@ -370,6 +370,9 @@ the hover, while cables are stacked in IN. */
 			rgbNow[c].store(0, std::memory_order_relaxed);
 	}
 	Self& self() { return static_cast<Self&>(*this); }
+	/** How many sources I have rows for: a row of my body past them is my
+	own, a Mix's sum. */
+	static constexpr int SOURCE_ROWS = ROWS;
 
 	/** A cable in IN changes what I gather, nothing, so it is a change of
 	the parse as well as of the wiring. */

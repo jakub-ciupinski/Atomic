@@ -15,8 +15,8 @@
 
 /** The rig module: the base every member of the family derives from, and
 what the host does with it: the sweep and the tick, the watch tables, the
-topology and wiring epochs, the gate, the faces a node plays, the colour
-ranking and the downward writes. `Pulse`, `JackWatch` and `TrigCounter` are
+topology and wiring epochs, the gate, the faces a node plays and the colour
+ranking. `Pulse`, `JackWatch` and `TrigCounter` are
 the small machines a module holds on its jacks. */
 
 namespace rig {
@@ -134,10 +134,12 @@ param and never says it again. There are a handful of them in the whole
 plugin, and the alternative was a Trg asking for the sample tick for the rest
 of its life.
 
-A channel count is a byte and not a float, so it keeps its own small table
-beside them and is swept with the params: a cable arriving or leaving bumps
-the wiring epoch and rebuilds everything, and a count moving under a cable
-that stayed is rare enough to find within thirty-two samples. */
+A channel count is a byte and not a float, so counts keep two small tables
+of their own beside them: a cabled jack's count is swept every sample with
+its volts, so a cable that grows carries its new channels from the sample it
+grows, and an empty jack's with the params, which is what notices a cable
+arriving. A cable arriving or leaving bumps the wiring epoch and rebuilds
+everything (`Host::buildWatch`). */
 struct Watch {
 	const float* at;
 	float last;
@@ -330,7 +332,15 @@ struct Member : Module, JackGlow, tree::Node {
 	cable says (added, loaded, bypassed, a gatherer's IN): my rig reparses on
 	the next look, and no other rig does. Set by whichever thread made the
 	change, before it bumps the epoch; cleared by my host's `bond`. A fresh
-	module owes one. */
+	module owes one.
+	What makes a host that sees the epoch move see the debt too is Rack's
+	engine lock, not the two stores' own order: the epoch is bumped and read
+	relaxed, and an acquire pairs only with a release on the same atomic.
+	Every caller (`onAdd`, `onBypass`, `onUnBypass`, `dataFromJson`, a cable
+	at a gatherer's IN) runs under the engine's exclusive lock, or on a module
+	not yet added, whose `onAdd` owes again under it, and a block takes the
+	lock shared before any host reads. A caller outside the lock, a widget's
+	step, would need the epoch bumped release and read acquire. */
 	std::atomic<bool> parseOwed{true};
 	void oweParse() {
 		parseOwed.store(true, std::memory_order_release);
@@ -342,7 +352,7 @@ struct Member : Module, JackGlow, tree::Node {
 	static const int CONTROL_PERIOD = 32; // samples between looks at the controls
 
 	/** Does this module have work of its own to do on every sample, whatever
-	else the rig is doing: a clock's ramp, a delay line, a pulse ending, a
+	else the rig is doing: a clock's ramp, a glide, a pulse ending, a
 	light fading. It is asked afresh after every wake and on every control
 	period, so a clock that is stopped leaves the list and an idle patch
 	costs an empty loop. It is NOT a claim about speed: every module behaves
@@ -386,7 +396,10 @@ struct Member : Module, JackGlow, tree::Node {
 
 	// Who stands where is the walk's to find, so a move only rings; what a
 	// module holds is not, so an add, a load or a bypass owes a parse.
-	void onAdd(const AddEvent& e) override { oweParse(); }
+	void onAdd(const AddEvent& e) override {
+		sizeGlow(this);
+		oweParse();
+	}
 	void onRemove(const RemoveEvent& e) override { bumpTopology(); }
 	void onExpanderChange(const ExpanderChangeEvent& e) override { bumpTopology(); }
 	void onBypass(const BypassEvent& e) override { oweParse(); }
@@ -749,6 +762,17 @@ unlike a GAP, which keeps one bracket. The
 engine's rig, the hand's run (`runOf`) and a RIG's molecule all stop here. */
 inline bool inRig(Module* m) {
 	return isFamily(m) && !m->isBypassed();
+}
+/** The member bonded to `m`'s right in the engine's rig, or none: one in the
+rig whose left expander names `m` back. Rack writes the two ids of a bond on
+the UI thread one module at a time and turns them into pointers once a
+block, so a block can begin with a bond half made; read from one side, that
+is two hosts over the module on the right or none, for the whole block. Read
+from both, it is no bond until the second id lands, whose
+ExpanderChangeEvent makes the bond a block later. */
+inline Member* bondedRight(Module* m) {
+	Module* r = m->rightExpander.module;
+	return inRig(r) && r->leftExpander.module == m ? static_cast<Member*>(r) : nullptr;
 }
 
 /** The top-down rule, held by the compiler.

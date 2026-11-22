@@ -26,7 +26,7 @@ struct StepQuantity : HintQuantity {
 	float getDisplayValue() override {
 		if (!head)
 			return 0.f;
-		return (float)((relaxed(head->shownPhased) ? relaxed(head->shownBase) : head->shownPos()) + 1);
+		return (float)(head->namedStep() + 1);
 	}
 	void setDisplayValue(float v) override {
 		const int n = head ? head->shownCount() : 0;
@@ -121,6 +121,7 @@ to the next mode. `G_MODE_PLAY` and `G_MODE_HALT` are the keys the button
 reads; the two after them are their words where they go the other way. */
 inline const Gesture G_MODE_NEXT = declare(On::Click, Mod::None, Rank::Known, "Click: next mode");
 inline const Gesture G_MODE_PLAY = declare(On::Click, Mod::Shift, Rank::Invented, RACK_MOD_SHIFT_NAME "-click: PLAY");
+inline const Gesture G_MODE_HALT = declare(On::Click, Mod::Command, Rank::Invented, RACK_MOD_CTRL_NAME "-click: HALT");
 inline const Gesture G_MODE_SHIFT_HALT = declare(On::Click, Mod::Shift, Rank::Invented, RACK_MOD_SHIFT_NAME "-click: HALT");
 inline const Gesture G_MODE_CMD_PLAY = declare(On::Click, Mod::Command, Rank::Invented, RACK_MOD_CTRL_NAME "-click: PLAY");
 /** The step screen's: a drag under a clock holds the step it reaches,
@@ -129,7 +130,6 @@ drag picks the step; a double click sends the walk to step one. */
 inline const Gesture G_STEP_HOLD = declare(On::Drag, Mod::None, Rank::Invented, "Drag: hold a step");
 inline const Gesture G_STEP_PICK = declare(On::Drag, Mod::None, Rank::Known, "Drag: pick a step");
 inline const Gesture G_STEP_ONE = declare(On::Double, Mod::None, Rank::Known, "Double-click: step one");
-inline const Gesture G_MODE_HALT = declare(On::Click, Mod::Command, Rank::Invented, RACK_MOD_CTRL_NAME "-click: HALT");
 
 /** The slew's place read as its time, in samples or milliseconds, "Off"
 before it where its switch is off, and a time typed in kept as typed
@@ -328,6 +328,9 @@ wake every sample. Plain fields, the engine's. */
 	// ONCE, for the button: the places dark in the high half, the cycle in
 	// the low, one word so the two are never torn apart (`onceDark`).
 	static constexpr int32_t ONCE_OFF = -0x10000; // not in ONCE: -1 dark
+	static int32_t onceWord(int64_t dark, int64_t cycle) {
+		return (int32_t)((dark << 16) | std::min(cycle, (int64_t)0xffff));
+	}
 	std::atomic<int32_t> onceShown{ONCE_OFF};
 	int32_t onceWork = ONCE_OFF;
 	bool onceWas = false; // ONCE held the walk last wake, so entering it arms
@@ -431,8 +434,8 @@ wake every sample. Plain fields, the engine's. */
 	bool slewOnWork = false;
 	bool blepWork = true;
 	bool overWork = true;
-	/** Under a Clock in hertz (`choiceIn`). Measured at the census, outside
-	any wake, and stored there on a change. */
+	/** Under a Clock in hertz (`choiceIn`): the count's word, read at the
+	census into `hertzWas` and published with the rest of the wake. */
 	std::atomic<bool> hertzNow{false};
 	bool hertzWas = false;
 	/** Whether the edges are band-limited this wake: BLEP or Oversampling
@@ -533,7 +536,7 @@ wake every sample. Plain fields, the engine's. */
 	// not one after.
 	float slewOut[PORT_MAX_CHANNELS] = {}, slewErr[PORT_MAX_CHANNELS] = {};
 	int slewN = 0;
-	const Cartridge* slewMember = nullptr;
+	Cartridge* slewMember = nullptr;
 	int slewStep = -1;
 	Cartridge* fadeFrom = nullptr;
 	int slewErrN = 0;
@@ -861,6 +864,7 @@ wake every sample. Plain fields, the engine's. */
 		// `rateCore`, which stores into the RateIn the audio thread reads,
 		// and this is the UI thread.
 		const int now = inputs[RATE_INPUT].isConnected() ? relaxed(rateShown) : set;
+		const bool rateFreeNow = rateFreeOf(this, set);
 		if (rateIdle()) {
 			retipRateInForce(this, RATE_PARAM, set, "");
 			retipParam(this, RATE_PARAM, {"Rate", ""});
@@ -874,14 +878,12 @@ wake every sample. Plain fields, the engine's. */
 			// guess; a change
 			// waits for the next pulse of whatever clocks the SEQ
 			// (`Writer::want`).
-			const bool free = rateFreeOf(this, set);
-			const std::string lesson = rateModeLesson(free, "clock pulse");
+			const std::string lesson = rateModeLesson(rateFreeNow, "clock pulse");
 			retipParam(this, RATE_PARAM, {"Rate", lesson.c_str(), rateGestures()});
 		}
 		// The jack's law alone, and only where it is in force: with the rate
 		// idle, nothing clocking the walk or HALT, the jack moves nothing, so
 		// it says nothing, as the rate's screen stands dark.
-		const bool rateFreeNow = rateFreeOf(this, set);
 		retipIn(this, RATE_INPUT, {rateJackName(rateFreeNow), rateIdle() ? "" : rateFreeNow ? RATE_JACK_FREE_TIP : RATE_JACK_TIP});
 		retipIn(this, PHASE_INPUT, {"Phase", SEQ_PHASE_LESSON});
 	}
@@ -1191,10 +1193,9 @@ wake every sample. Plain fields, the engine's. */
 	}
 	int lane = -1;                 // my lane on every member of it
 	Mapping winOut;
-	// The member under the playhead this wake, for forwarding: asked by the
-	// nodes to my right in the pass, never by a screen. Atomic and dropped at
-	// every parse all the same, since a pointer valid for one wake is a thing
-	// to keep short-lived.
+	// The member under the playhead as the last wake left it, `stoodWork`
+	// published, for the sim's probe alone (`stoodOut`): the nodes to my
+	// right read `stoodWork` in the pass.
 	std::atomic<Cartridge*> stoodOn{nullptr};
 
 	/** A Seq writes into everything it reads (a colour, a lane, a lit key on
@@ -1244,6 +1245,7 @@ wake every sample. Plain fields, the engine's. */
 		overCVNow.store(overCVWork, std::memory_order_relaxed);
 		gatesNow.store(gatesWork, std::memory_order_relaxed);
 		outPoly.store(outPolyWork, std::memory_order_relaxed);
+		hertzNow.store(hertzWas, std::memory_order_relaxed);
 		stoodOn.store(stoodWork, std::memory_order_relaxed);
 		onceShown.store(onceWork, std::memory_order_relaxed);
 	}
@@ -1252,7 +1254,6 @@ wake every sample. Plain fields, the engine's. */
 	bool fineWork = false; // a reader of mine plays the writer's ramp, or the turn, every sample
 	void settle() override {
 		tookTold = -1;
-		stoodOn.store(nullptr, std::memory_order_relaxed);
 		stoodWork = nullptr;
 		fadeTo = nullptr;
 		// No further than the cap: the members past it, furthest from me,
@@ -1411,6 +1412,19 @@ wake every sample. Plain fields, the engine's. */
 			const int i = indexAt(step);
 			member = i < size() ? (*chain)[i] : nullptr;
 			within = i < size() ? step + skip - start[i] : step;
+		}
+		/** The member step `step` falls in and the step within it, where a
+		step past the block stands on the last member: a block whose members
+		hold no steps, Trgs of no rings, is still walked as one step, where
+		`memberAt` finds none. */
+		Cartridge* memberOrLast(int step, int& within) const {
+			const int i = std::min(indexAt(step), size() - 1);
+			within = step + skip - start[i];
+			return (*chain)[i];
+		}
+		Cartridge* memberOrLast(int step) const {
+			int within;
+			return memberOrLast(step, within);
 		}
 		/** And back: the step that member and the step within it stand on
 		now, the last of the member's if it has grown shorter, or -1 where
@@ -1578,7 +1592,7 @@ wake every sample. Plain fields, the engine's. */
 	void walk(ThisWake& w, const ProcessArgs& args, int reshapedTo, int reshapedPre, int wasCount) {
 		const Asks a = takeAsks();
 		// ONCE with nothing driving the walk is dark: there is no pass.
-		onceWork = w.once ? (int32_t)((cycle << 16) | std::min(cycle, (int64_t)0xffff)) : ONCE_OFF;
+		onceWork = w.once ? onceWord(cycle, cycle) : ONCE_OFF;
 		if (drive == DRIVE_SCREEN) {
 			standUndriven(w, a);
 			return;
@@ -1864,8 +1878,7 @@ wake every sample. Plain fields, the engine's. */
 		}
 		w.wAlong = w.halt ? 0.0 : along;
 		onceWork = !w.once ? ONCE_OFF
-		           : (int32_t)(((seen.armed || wr.spent ? cycle : std::min(std::max(w.place, (int64_t)0), cycle - 1)) << 16) |
-		                       std::min(cycle, (int64_t)0xffff));
+		           : onceWord(seen.armed || wr.spent ? cycle : std::min(std::max(w.place, (int64_t)0), cycle - 1), cycle);
 		w.parked = !wr.ramping(f);
 		w.open = wr.landing(f) && !w.halt;
 		// The step the open pulse landed from, and its member, for a block
@@ -2200,8 +2213,7 @@ wake every sample. Plain fields, the engine's. */
 	/** The volts of a sound on the jack, a channel each; how many. */
 	static int jackVolts(const Sound& o, float* v) {
 		const int n = std::max(o.voices, 1);
-		// A divider's line as the line itself, not twelve times it over twelve.
-		v[0] = sane(o.band != NO_BAND && o.semis == 12.f * o.volts ? o.volts : o.semis / 12.f);
+		v[0] = sane(o.lineVolts());
 		for (int c = 1; c < n; c++)
 			v[c] = sane(o.voice[c]);
 		return n;
@@ -2231,7 +2243,7 @@ wake every sample. Plain fields, the engine's. */
 	switch leaves behind, still running (`soundOf`), which the crossfade
 	fades from and BLEP measures the jump from. */
 	Cartridge* leftBehind() const {
-		Cartridge* was = const_cast<Cartridge*>(slewMember);
+		Cartridge* was = slewMember;
 		return was && was != stoodWork && std::find(chain.begin(), chain.end(), was) != chain.end() ? was : nullptr;
 	}
 	/** What Atn `m` sounds as a step, as though the playhead stood on it:
@@ -2423,9 +2435,7 @@ wake every sample. Plain fields, the engine's. */
 	curve sounds between two samples where the jack is that curve and
 	nothing more. HALT too: a HALTed Seq under a turn is a waveshaper, the
 	turn walking the curves, and a step stood on with no turn moves nowhere
-	along it, so `bandLimit` reads no curve there anyway (HALT was left out
-	with PHASE before a turn's edges were read where the turned place
-	crosses). */
+	along it, so `bandLimit` reads no curve there anyway. */
 	void limitVolts(float* v, int n, const ThisWake& w, const ProcessArgs& args) {
 		const bool alongs = n == 1 && !routeWork && !w.silent && !w.holding;
 		const bool back = alongBack(w.turning ? w.tPlace : w.place, count, dir);
@@ -2482,10 +2492,7 @@ wake every sample. Plain fields, the engine's. */
 		// more often.
 		const Count* cnt = countIn(args.frame);
 		const bool hz = cnt && cnt->hertz;
-		if (hz != hertzWas) {
-			hertzWas = hz;
-			hertzNow.store(hz, std::memory_order_relaxed);
-		}
+		hertzWas = hz;
 		// The choice in force where I stand (`choiceIn`). BLEP or
 		// oversampling on wants every sample too: the correction after an
 		// edge, and the way back down, are a sample's at a time (`bandLimit`).
@@ -3260,9 +3267,8 @@ wake every sample. Plain fields, the engine's. */
 	into the member's along exactly as `place` does. Taken only where the
 	place is the walk's own, unturned and unheld, and only while the params a
 	wake reads stand as they did; anything else, or a writer that has moved
-	past what a fine wake can move, is a whole wake. A whole wake every sample
-	made a block of CRVs played through by nine Seqs on two Clocks cost a
-	quarter more. */
+	past what a fine wake can move, is a whole wake. A whole wake every
+	sample is dear where several Seqs play a block of CRVs through. */
 	ThisWake fineWas;
 	bool fineReady = false;
 	float fineParams[6] = {};

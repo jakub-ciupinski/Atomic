@@ -889,13 +889,6 @@ struct FaderParam : LevelParam {
 	static int cellOn(const Mapping& m, const Slots& sl, float x) {
 		return onNotes(m, sl) ? Slots::cellOf(m, x, sl.count) : -1;
 	}
-	static float voltsOf(CV* c) {
-		Mapping cm;
-		Slots cs;
-		if (!c->snapshot(cm, cs))
-			return NAN;
-		return cs.map(cm, c->params[CV::VALUE_PARAM].getValue());
-	}
 	void gatherBlock(CV* m) {
 		carried.clear();
 		const float x0 = getParamQuantity()->getValue();

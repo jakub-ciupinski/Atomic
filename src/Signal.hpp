@@ -604,11 +604,7 @@ inline float quantStage(Signal& s, const Scale& scale, int* value, int* bandOut 
 			s.setLine(line, s.color);
 		return 12.f * line;
 	}
-	// A keyboard transposed by degrees moves the note it snapped to along
-	// the pattern (`degreeMoved`).
-	const int semis = scale.spread && scale.any() ? nearestSpread(scale, s.present ? s.semis : 0.f)
-	                  : scale.any()               ? degreeMoved(scale, nearestInScale(s.present ? s.semis : 0.f, scale))
-	                                              : (int)std::round(s.present ? s.semis : 0.f);
+	const int semis = nearestNote(scale, s.present ? s.semis : 0.f);
 	if (value)
 		*value = s.present ? scale.rowOf(semis) : -1;
 	// The note snapped to as a whole semitone, for whoever lights it, since
@@ -698,6 +694,12 @@ struct Sound {
 	float voice[PORT_MAX_CHANNELS] = {};
 	Signal signal;
 	Mapping window;
+	/** The volts the jack gives: under a divider the line itself, `volts`,
+	while `semis` is still twelve times it, since twelve times a line over
+	twelve need not give it back bit for bit; `semis` over twelve once a
+	router or a quantizer has rewritten `semis` alone, and for anything
+	else. */
+	float lineVolts() const { return band != NO_BAND && semis == 12.f * volts ? volts : semis / 12.f; }
 };
 
 /** The face of a cartridge: everything a playhead or a Poly asks of a
@@ -789,9 +791,6 @@ and published at its end, and its screen reads nothing else. */
 struct QuantFace {
 	virtual ~QuantFace() {}
 	virtual void light(int semis, int color) = 0;
-	/** The same for a voltage that is not a note: a volt divider's band,
-	which a semitone is too coarse to name past a hundred and twenty parts. */
-	virtual void lightVolts(float volts, int color) { light((int)std::round(volts * 12.f), color); }
 	/** And a divider's band by its own integer, the one route a reader
 	lights a band by, so nothing names it twice. */
 	virtual void lightBand(int band, int color) {}

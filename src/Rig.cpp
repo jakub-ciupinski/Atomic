@@ -80,7 +80,7 @@ const float RIG_CX = CX;
 // closing where a CRV's screen does. Every button is a quarter of the hand,
 // SAVE too, so all five rows are one button in size.
 const float NAME_Y = SCREEN_Y;
-const float STRIP_H = HAND_ROW_H; // HeadBase.hpp, the GAP's buttons the same
+const float STRIP_H = HAND_ROW_H; // HeadBase.hpp
 const float HAND_Y = HAND_TOP;
 const float SCENE_Y = HAND_Y - HEAD_SCREEN_H;
 const float NAME_H = SCENE_Y - NAME_Y;
@@ -203,13 +203,13 @@ drawn red and crossed. The default is never missing, only not made yet. */
 bool userMissing() { return !chosenFolder().empty() && !system::isDirectory(chosenFolder()); }
 /** Whether `path` is `dir` or stands anywhere inside it. A folder not on
 disk holds nothing: its canonical form is empty, which every path would
-otherwise start with (the user's folder before its first save, which once
-claimed every rig opened from elsewhere). A file not made yet, a save's
-new name, has no canonical form either, nor has a folder a save is about to
-make, so it is placed by the nearest folder above it that is on disk, the
-names below that kept as they are (a dialog's answer is absolute and holds
-no ".."); placed by its own folder alone, a save into a new folder inside
-the factory's was let by. */
+otherwise start with, so the user's folder before its first save would claim
+every rig opened from elsewhere. A file not made yet, a save's new name, has
+no canonical form either, nor has a folder a save is about to make, so it is
+placed by the nearest folder above it that is on disk, the names below that
+kept as they are (a dialog's answer is absolute and holds no ".."); placed
+by its own folder alone, a save into a new folder inside the factory's
+would not be found inside it. */
 bool within(const std::string& path, const std::string& dir) {
 	if (path.empty() || dir.empty())
 		return false;
@@ -278,11 +278,14 @@ void gatherRigs(const std::string& dir, std::vector<std::string>& out, int depth
 
 /** A module as Rack writes it, its params set to `valuesJ`, a scene's values
 for it by param id; a param the scene does not hold keeps its own. A rig file
-holds a molecule twice, once as each module's own params and once as its
+holds a molecule twice, once as each module's own JSON and once as its
 scenes, and the scene showing is the one that wins: a rig is loaded and saved
-as its scene showing, so the file agrees with itself and Rack's Import
-selection builds the same molecule (where the params alone once built a
-Clock at 120 until its scene, holding 59, was picked). */
+with its params as its scene showing, so Rack's Import selection builds the
+scene's knobs and not whatever they stood at when it was saved. Only the
+params: a module's data, the scene settings past its params among it (a
+Clock's PPQN, a Seq's rate mode), is written as the module stands, so the
+RIG's own load sets those from the scene once the module is built
+(`sceneIntoSettings`), and an Import does not. */
 void sceneIntoParams(json_t* mJ, json_t* valuesJ) {
 	if (!json_is_array(valuesJ))
 		return;
@@ -332,16 +335,19 @@ struct RigChange : history::ModuleAction {
 	void redo() override { put(newJ); }
 };
 
-/** The RIG's state as it was, `oldJ`, and as it is now, one step of undo
-named `name`; `oldJ` is the step's to keep. */
-void pushRigChange(Rig* rig, json_t* oldJ, const char* name) {
+/** The RIG's state as it was, `oldJ`, and as it is now, a step of undo
+named `name`, to push alone or into a ComplexAction; `oldJ` is the step's to
+keep. */
+RigChange* rigChange(Rig* rig, json_t* oldJ, const char* name) {
 	RigChange* c = new RigChange;
 	c->name = name;
 	c->moduleId = rig->id;
 	c->oldJ = oldJ;
 	c->newJ = rig->stateJson();
-	APP->history->push(c);
+	return c;
 }
+/** And pushed alone, one step of undo. */
+void pushRigChange(Rig* rig, json_t* oldJ, const char* name) { APP->history->push(rigChange(rig, oldJ, name)); }
 
 struct RigWidget;
 
@@ -1137,12 +1143,7 @@ struct RigWidget : MemberWidget {
 			rig->storeGiven(at, clip);
 		history::ComplexAction* h = new history::ComplexAction;
 		h->name = over ? "paste over scene" : "paste scene";
-		RigChange* c = new RigChange;
-		c->name = h->name;
-		c->moduleId = rig->id;
-		c->oldJ = oldJ;
-		c->newJ = rig->stateJson();
-		h->push(c);
+		h->push(rigChange(rig, oldJ, h->name.c_str()));
 		const std::vector<Module*> w = moleculeModules();
 		std::vector<Rig::Moved> moved;
 		rig->handPick(at, w, &moved, false);
@@ -1167,12 +1168,7 @@ struct RigWidget : MemberWidget {
 		rig->deleteScene(rig->shownForUi());
 		history::ComplexAction* h = new history::ComplexAction;
 		h->name = "delete scene";
-		RigChange* c = new RigChange;
-		c->name = h->name;
-		c->moduleId = rig->id;
-		c->oldJ = oldJ;
-		c->newJ = rig->stateJson();
-		h->push(c);
+		h->push(rigChange(rig, oldJ, h->name.c_str()));
 		if (rig->sceneCount() > 0 && !relaxed(rig->patchedNow)) {
 			const std::vector<Module*> w = moleculeModules();
 			std::vector<Rig::Moved> moved;
@@ -1489,7 +1485,7 @@ struct RigWidget : MemberWidget {
 			return true;
 		if (kindsOf(w) != rig->cleanModels)
 			return true;
-		if (rig->note != rig->cleanNote || rig->scenesOn(idsOf(w)) != rig->cleanScenes)
+		if (rig->note != rig->cleanNote || !rig->scenesClean(idsOf(w)))
 			return true;
 		return rig->cleanScenes.empty() && settingsDiffer(w);
 	}
@@ -1575,9 +1571,8 @@ struct RigWidget : MemberWidget {
 	of that name, else numbered on past any taken. */
 	std::string freshName(const std::string& dir) {
 		const std::string stem = rig && !rig->file.empty() ? system::getStem(rig->file) : std::string("Untitled");
-		if (!rig || rig->file.empty() || !within(rig->file, dir))
-			if (!system::exists(system::join(dir, stem + "." + RIG_EXT)))
-				return stem + "." + RIG_EXT;
+		if ((!rig || rig->file.empty() || !within(rig->file, dir)) && !system::exists(system::join(dir, stem + "." + RIG_EXT)))
+			return stem + "." + RIG_EXT;
 		std::string base = stem;
 		// "song 3" is numbered on from 3, not given "song 3 2".
 		const size_t sp = stem.find_last_of(' ');
@@ -1826,12 +1821,7 @@ struct RigWidget : MemberWidget {
 		rig->markClean(kindsOf(added), rig->scenesOn(idsOf(added)), rig->note, paramsOf(added), dataOf(added));
 		saveDiffers = false;
 		json_decref(rootJ);
-		RigChange* c = new RigChange;
-		c->name = "load rig";
-		c->moduleId = rig->id;
-		c->oldJ = oldJ;
-		c->newJ = rig->stateJson();
-		h->push(c);
+		h->push(rigChange(rig, oldJ, "load rig"));
 		APP->history->push(h);
 		placeChosen = -1;
 		placesDirty = true;
@@ -1959,8 +1949,8 @@ struct RigWidget : MemberWidget {
 			retipIn(rig, Rig::SCENE_INPUT, {"Scene", (std::string(RIG_SCENE_IN_LESSON) + (rigSeqs ? RIG_SEQS_PLAY_ON : "")).c_str()});
 			// The molecule against the scene showing, every frame too: a few
 			// params compared, and REPLACE then breathes by this frame's
-			// molecule rather than one up to six frames old, which a traced
-			// frame drew differently by how many frames a test had stepped.
+			// molecule rather than one up to six frames old, so what a frame
+			// draws does not hang on how many frames came before it.
 			sceneDiffers = rig->sceneCount() > 0 && rig->differs(moleculeModules());
 			// Whether the folder is still there, a few times a second, the
 			// disk being read.

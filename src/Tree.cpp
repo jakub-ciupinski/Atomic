@@ -170,13 +170,6 @@ void Node::hear(Node* to, uint32_t what) {
 				hear(c, on);
 }
 
-bool anyDirty(const std::vector<Node*>& rig) {
-	for (Node* n : rig)
-		if (n->dirty)
-			return true;
-	return false;
-}
-
 bool gating = true;
 thread_local long long wakes = 0; // each engine thread its own count: two rigs' hosts may wake at once, and only the bench, on its one thread, reads them
 thread_local long long runs = 0;

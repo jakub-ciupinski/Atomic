@@ -14,7 +14,7 @@ stands.
 Deciding whether anything changed is three things and no more, and none of
 them asks a module how it behaves. The tick subscribers go first: the short
 list of members with state of their own to advance, a clock's ramp or a
-delay line, which is asked for afresh after every wake. Then the watch
+glide, which is asked for afresh after every wake. Then the watch
 table, one flat sweep of every number arriving from outside: every channel
 of every connected jack every sample, every param every control period.
 Then the pokes, for what the user interface has written behind the rig's
@@ -134,8 +134,7 @@ void Member::process(const ProcessArgs& args) {
 		if (slow && host)
 			for (Member* m : host->members)
 				if (m->parseStale()) {
-					host->bond(this);
-					poke.store(true, std::memory_order_relaxed);
+					host->bond(this); // a fresh table, which stirs the whole rig
 					break;
 				}
 	}
@@ -147,7 +146,7 @@ void Member::process(const ProcessArgs& args) {
 		Module* left = leftExpander.module;
 		// A module that has stopped hosting must not keep a vector of nodes
 		// that may point at modules now deleted, so it keeps no rig at all.
-		if (inRig(left))
+		if (inRig(left) && bondedRight(left) == this)
 			host.reset();
 		else if (!host) {
 			host.reset(new Host);
@@ -175,8 +174,8 @@ void Member::process(const ProcessArgs& args) {
 bool Host::regrouped(Member* self) {
 	walked.clear();
 	walked.push_back(self);
-	for (Module* m = self->rightExpander.module; inRig(m); m = m->rightExpander.module)
-		walked.push_back(static_cast<Member*>(m));
+	for (Member* m = bondedRight(self); m; m = bondedRight(m))
+		walked.push_back(m);
 	if (walked != members)
 		return true;
 	for (Member* m : walked)
@@ -197,8 +196,8 @@ void Host::bond(Member* self) {
 	liveCounts.clear();
 	knownWiring = 0; // whatever the cables are doing, the table is stale
 	members.push_back(self);
-	for (Module* m = self->rightExpander.module; inRig(m); m = m->rightExpander.module)
-		members.push_back(static_cast<Member*>(m));
+	for (Member* m = bondedRight(self); m; m = bondedRight(m))
+		members.push_back(m);
 	// What was owed is paid by this parse; anything owed after it rings again.
 	for (Member* m : members)
 		m->parseOwed.exchange(false, std::memory_order_acquire);
@@ -294,13 +293,12 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 		for (Member* m : members)
 			m->startedAt.store(args.frame, std::memory_order_relaxed);
 	if (synced)
-		for (size_t i = nodes.size(); i-- > 0;)
-			if (nodes[i]->traits & tree::T_RESTART) {
-				Member* r = static_cast<Member*>(nodes[i]);
-				r->onRestart();
-				r->settingsMoved = true;
-				stir(r, stirs);
-			}
+		for (size_t i = restarts.size(); i-- > 0;) {
+			Member* r = restarts[i];
+			r->onRestart();
+			r->settingsMoved = true;
+			stir(r, stirs);
+		}
 	// A Clock's RESET jack is the Clock's own business: it sends the reset to
 	// the Seqs of its group in what it sends them (`Count::resets`), whatever
 	// cable clocks them, in the wake its jack makes.
@@ -328,9 +326,9 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 		if (!m->subscribed)
 			m->everySample(args);
 	}
-	if (slow)
-		retick();
 	if (!wake) {
+		if (slow)
+			retick(); // a wake asks after it instead
 		bracketLines(args); // a comparison owed by a wake that came before it was due
 		return;
 	}
@@ -348,7 +346,7 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 	linesOwed = true;
 	bracketLines(args);
 	// A wake is what changes who has state to advance: a clock told to run,
-	// a delay given a cable, a pulse just fired.
+	// a glide set going, a pulse just fired.
 	retick();
 }
 

@@ -78,8 +78,7 @@ inline void replaceModule(ModuleWidget* mw, Model* next) {
 	const int newW = gridUnits(nw->box.size.x);
 	if (newW < oldW) {
 		// The modules standing edge to edge to the old one's right, in
-		// order, drawn left by the difference, the nearest first so each
-		// lands where its neighbour has just left.
+		// order, drawn left by the difference.
 		std::vector<ModuleWidget*> chain;
 		int edge = gridUnits(pos.x) + oldW;
 		for (bool found = true; found;) {
@@ -92,14 +91,18 @@ inline void replaceModule(ModuleWidget* mw, Model* next) {
 					break;
 				}
 		}
-		rack->addModule(nw);
-		rack->requestModulePos(nw, pos);
+		// Placed silently, so the rack's adding the new one writes the
+		// layout's bonds once, whole (`writeBonds`).
 		for (ModuleWidget* o : chain)
-			rack->requestModulePos(o, o->box.pos.minus(Vec((oldW - newW) * RACK_GRID_WIDTH, 0.f)));
+			o->setPosition(o->box.pos.minus(Vec((oldW - newW) * RACK_GRID_WIDTH, 0.f)));
+		rack->addModule(nw);
 	}
 	else {
+		// What stands in the wider one's way shoved as Rack shoves for it,
+		// placed silently, so adding it writes the bonds once, whole.
+		const Vec at = nw->box.pos.minus(RACK_OFFSET).div(RACK_GRID_SIZE).round();
+		shoveAside(at.y, (int)at.x, newW, {});
 		rack->addModule(nw);
-		rack->setModulePosForce(nw, pos);
 	}
 	nw->loadTemplate();
 
@@ -177,12 +180,8 @@ inline void insertModule(ModuleWidget* mw, Model* model, bool after, json_t* sta
 			to.push_back(std::make_pair(o, limit));
 			limit += ow;
 		}
-		// The farthest first, so each lands where nothing stands yet.
-		for (int k = (int)to.size() - 1; k >= 0; k--) {
-			const Vec p(to[k].second * RACK_GRID_WIDTH, to[k].first->box.pos.y);
-			if (!rack->requestModulePos(to[k].first, p))
-				rack->setModulePosForce(to[k].first, p);
-		}
+		for (const std::pair<ModuleWidget*, int>& t : to)
+			t.first->setPosition(Vec(t.second * RACK_GRID_WIDTH, t.first->box.pos.y));
 	}
 	else {
 		// Everything to the seam's left, the nearest first, each pushed to
@@ -202,17 +201,15 @@ inline void insertModule(ModuleWidget* mw, Model* model, bool after, json_t* sta
 			to.push_back(std::make_pair(o, limit - ow));
 			limit -= ow;
 		}
-		// The farthest first, so each lands where nothing stands yet.
-		for (int k = (int)to.size() - 1; k >= 0; k--) {
-			const Vec p(to[k].second * RACK_GRID_WIDTH, to[k].first->box.pos.y);
-			if (!rack->requestModulePos(to[k].first, p))
-				rack->setModulePosForce(to[k].first, p);
-		}
+		for (const std::pair<ModuleWidget*, int>& t : to)
+			t.first->setPosition(Vec(t.second * RACK_GRID_WIDTH, t.first->box.pos.y));
 	}
-	rack->addModule(nw);
+	// Everything shoved was placed silently and the new one stands in its
+	// place before the rack has it, so adding it writes the layout's bonds
+	// once, whole (`writeBonds`).
 	const Vec pos(at * RACK_GRID_WIDTH, mw->box.pos.y);
-	if (!rack->requestModulePos(nw, pos))
-		rack->setModulePosForce(nw, pos);
+	nw->box.pos = pos;
+	rack->addModule(nw);
 	if (!state) // a copy keeps the state it was made with
 		nw->loadTemplate();
 
@@ -292,9 +289,10 @@ inline void deleteModule(ModuleWidget* mw) {
 	h->name = "delete module";
 	removeWithHistory(h, mw);
 	const std::map<ModuleWidget*, Vec> was = standing();
-	// The nearest first, so each lands where its neighbour has just left.
 	for (ModuleWidget* o : chain)
-		rack->requestModulePos(o, o->box.pos.minus(Vec(w * RACK_GRID_WIDTH, 0.f)));
+		o->setPosition(o->box.pos.minus(Vec(w * RACK_GRID_WIDTH, 0.f)));
+	if (!chain.empty())
+		writeBonds(chain.front());
 	pushMoves(h, was);
 	APP->history->push(h);
 }

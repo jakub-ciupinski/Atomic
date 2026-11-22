@@ -43,9 +43,10 @@ struct KeyCell : ParamWidget, CellPaint<KeyCell>, GroundPart {
 		// sounding (`MemberWidget::unpowered`).
 		if (k && engineSilent())
 			return black ? ROLL_BLACK : ROLL_WHITE;
-		const Scale now = k ? k->scaleNow.load() : Scale();
+		const Qnt::Shown sh = k ? k->shownNow() : Qnt::Shown();
+		const Scale& now = sh.scale;
 		// The notes as set: the scale in force moved back by its transpose.
-		const bool on = k ? (key == Qnt::TOP_KEY ? now.extra : now.has(key + k->movedBy(now))) : !black;
+		const bool on = k ? (key == Qnt::TOP_KEY ? now.extra : now.has(key + Qnt::movedBy(sh))) : !black;
 		// Sounding, a row fills with the colour of the Seq playing it, cut
 		// into strips side by side where several play it (`KeyHeads`), as a
 		// keyboard's key is, so every one of several shows.
@@ -99,8 +100,9 @@ struct KeyCell : ParamWidget, CellPaint<KeyCell>, GroundPart {
 		Qnt* k = getQnt();
 		// What is shown is the keys as set: the scale in force moved back by
 		// the transpose (`movedBy`).
-		const Scale now = k ? k->scaleNow.load() : Scale();
-		const int tr = k ? k->movedBy(now) : 0;
+		const Qnt::Shown sh = k ? k->shownNow() : Qnt::Shown();
+		const Scale& now = sh.scale;
+		const int tr = k ? Qnt::movedBy(sh) : 0;
 		const bool on = k ? now.has(key + tr) : !isBlackKey(pc);
 		const bool empty = k && !now.any();
 		// No dimming of the Qnts a Seq is not stood on: its playhead over the
@@ -186,8 +188,9 @@ struct KeyCell : ParamWidget, CellPaint<KeyCell>, GroundPart {
 	int boundParam() {
 		Qnt* k = getQnt();
 		if (roll && k) {
-			const int n = std::max(1, (int)relaxed(k->octavesNow));
-			const int shift = relaxed(k->rollShiftNow);
+			const Qnt::Shown sh = k->shownNow();
+			const int n = std::max(1, sh.octaves);
+			const int shift = sh.shift;
 			const int pitch = key == Qnt::TOP_KEY ? Qnt::rollBase(n, shift) + 12 * n : Qnt::rollSemis(key, n, shift);
 			if (pitch >= -Qnt::ROLL_BELOW && pitch <= Qnt::ROLL_BELOW)
 				return Qnt::rollParam(pitch);
@@ -366,9 +369,10 @@ struct Keyboard : Widget {
 	void follow() {
 		ModuleWidget* mw = getAncestorOfType<ModuleWidget>();
 		Qnt* k = mw ? dynamic_cast<Qnt*>(mw->module) : nullptr;
-		const int octaves = k ? clamp(relaxed(k->octavesNow), 0, MAX_OCTAVES) : 1;
-		const bool roll = k && relaxed(k->rollNow);
-		const int shift = k ? relaxed(k->rollShiftNow) : 0;
+		const Qnt::Shown sh = k ? k->shownNow() : Qnt::Shown();
+		const int octaves = clamp(sh.octaves, 0, MAX_OCTAVES);
+		const bool roll = sh.roll;
+		const int shift = sh.shift;
 		const bool withLane = k && k->showsLane();
 		if (octaves != laidOut || roll != laidRoll || shift != laidShift || withLane != laidLane)
 			layout(octaves, roll, shift, withLane);

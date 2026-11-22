@@ -224,6 +224,35 @@ inline void paintBracket(NVGcontext* vg, float x0, float w, float h, float clip0
 	}
 }
 
+/** Every expander id written once, for the layout as it stands, after
+modules have been placed silently (`setGridPosition`, `setPosition`): Rack
+writes every id each time it places a module, and the engine reads them once
+a block, so modules moved one at a time are read for a block with a gap
+wherever a block begins between two placements, a rig torn into two. The
+one public call that writes the ids is a placement, so `placed` is forced
+onto the place it already holds; with nothing in its way it shoves nothing
+and moves nothing. */
+inline void writeBonds(ModuleWidget* placed) {
+	APP->scene->rack->setModulePosForce(placed, placed->box.pos);
+}
+
+/** Every module on the rack row at grid height `row` but those `held`,
+shoved aside from [at, at + width) in grid steps as Rack shoves for one
+module placed by force there (`framedrag::shove`), and placed silently. */
+inline void shoveAside(float row, int at, int width, const std::vector<ModuleWidget*>& held) {
+	std::vector<ModuleWidget*> them;
+	std::vector<framedrag::Slot> slots;
+	for (ModuleWidget* o : APP->scene->rack->getModules())
+		if (o->getGridPosition().y == row && std::find(held.begin(), held.end(), o) == held.end()) {
+			them.push_back(o);
+			slots.push_back({(int)o->getGridPosition().x, (int)o->getGridSize().x});
+		}
+	framedrag::shove(at, width, slots);
+	for (size_t k = 0; k < them.size(); k++)
+		if (slots[k].x != (int)them[k]->getGridPosition().x)
+			them[k]->setGridPosition(Vec(slots[k].x, row));
+}
+
 struct Bracket : OpaqueWidget, StaticPart {
 	// Every member, left to right, at drag start, held by id: an undo in the
 	// middle of the drag may take a member away (`HeldModule`).
@@ -285,24 +314,41 @@ struct Bracket : OpaqueWidget, StaticPart {
 		grabbed = true;
 	}
 
-	/** Move the rig as one rigid thing. Each module is placed where a member
-	of the rig already stands, so they go in the order that keeps every target
-	clear: leftmost first heading left, rightmost first heading right. */
+	/** Move the rig as one rigid thing, and never write it torn: Rack
+	writes every module's expander ids each time it places one, while the
+	engine reads them once a block, so a rig placed member by member would
+	be read for a block as two rigs whenever a block began between two
+	placements, the members past the gap losing their Clock for it. So
+	every member goes to its place first, the rig's own bonds unchanged,
+	then the modules in its way on that row are shoved aside as Rack
+	shoves them for one module, the rig taken as that module
+	(`framedrag::shove`), and only then are the ids written, once. */
 	void onDragMove(const DragMoveEvent& e) override {
-		if (!grabbed || settings::lockModules)
+		ModuleWidget* mine = panel();
+		if (!grabbed || settings::lockModules || !mine)
 			return;
 		const float zoom = std::max(APP->scene->rackScroll->getZoom(), 0.01f);
 		dragPos = dragPos.plus(e.mouseDelta.div(zoom));
 		const Vec base = framedrag::snapToGrid(dragPos, RACK_GRID_WIDTH, RACK_GRID_HEIGHT);
-		RackWidget* rack = APP->scene->rack;
-		ModuleWidget* mine = panel();
-		const bool leftward = mine && base.x < mine->box.pos.x;
-		for (int i : framedrag::placementOrder((int)rig.size(), leftward)) {
-			const Vec want = base.plus(offsets[i]);
-			ModuleWidget* w = rig[i].widget();
-			if (w && !w->box.pos.equals(want))
-				rack->setModulePosForce(w, want);
+		std::vector<ModuleWidget*> held;
+		std::vector<Vec> to; // in grid steps, whole
+		bool moves = false;
+		for (size_t i = 0; i < rig.size(); i++)
+			if (ModuleWidget* w = rig[i].widget()) {
+				held.push_back(w);
+				to.push_back(base.plus(offsets[i]).minus(RACK_OFFSET).div(RACK_GRID_SIZE).round());
+				moves = moves || !w->getGridPosition().equals(to.back());
+			}
+		if (!moves)
+			return;
+		int left = (int)to[0].x, right = left;
+		for (size_t i = 0; i < held.size(); i++) {
+			held[i]->setGridPosition(to[i]);
+			left = std::min(left, (int)to[i].x);
+			right = std::max(right, (int)to[i].x + (int)held[i]->getGridSize().x);
 		}
+		shoveAside(to[0].y, left, right - left, held);
+		writeBonds(mine);
 	}
 
 	void onDragEnd(const DragEndEvent& e) override {

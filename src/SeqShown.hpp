@@ -28,12 +28,14 @@ struct Head {
 	/** The walk's own step, before the PHASE jack's turn, which the step
 	screen shows while the jack is patched. */
 	std::atomic<int> shownBase{0};
-	/** The direction cell: nought forward, one reverse, two pendulum. */
+	/** The direction cell, a `Dir`: forward, pendulum or reverse, a
+	bounce shown as the pendulum. */
 	std::atomic<int> shownDir{0};
 	/** A reset armed, waiting on the next pulse to sound step one: the
 	screen lights its mark while the cells name the step still playing. */
 	std::atomic<bool> shownArmed{false};
-	/** The walk's own step at the last wake, armed or not: a plain field on
+	/** The step stood on at the last wake, armed or not, turned where a
+	cable in PHASE turns it (the walk's own is `shownBase`): a plain field on
 	the engine's side that only a headless test reads, never a screen. */
 	int walkPos = 0;
 
@@ -41,6 +43,9 @@ struct Head {
 	int shownPos() { return (int)((relaxed(shown) >> 16) & 0xffff); }
 	int shownColor() { return (int)((relaxed(shown) >> 32) & 0xf); }
 	int shownBits() { return (int)((relaxed(shown) >> 36) & 7); }
+	/** The step the step screen names: under a cable in PHASE the walk's
+	own, the turn being the bar's to show, else the step stood on. */
+	int namedStep() { return relaxed(shownPhased) ? relaxed(shownBase) : shownPos(); }
 
 	void store(int count, int pos, int color, int bits, bool phased) {
 		static_assert(MAX_SEQ_STEPS < 0xffff, "a step fits the screen word's sixteen bits");

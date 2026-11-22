@@ -55,7 +55,6 @@ struct ArcPointQuantity : WithHint<PitchFieldQuantity> {
 	std::string getDisplayValueString() override;
 	void setDisplayValue(float v) override;
 };
-struct Crv;
 /** The shape as its tooltip: its volts and what they make of the arc, a bend's
 or a spline stretch's (after Crv). */
 struct ArcBendQuantity : HintQuantity {
@@ -138,6 +137,10 @@ struct Crv : Cartridge, Probe {
 	/** My jack is volts, whatever scale my window carries: a CRV is never
 	quantized, so an OUT Atn reading me scales and offsets volts. */
 	const Mapping* playedOut() override { return nullptr; }
+	/** The most CRVs the last of a block gathers from the right. Past them a
+	block is cut: a CRV further left is never told an arc and plays its own
+	ramp, and the first gathered is taken as the block's first, so its LINK
+	closes the loop round to the last's end. */
 	static const int MAX_BLOCK = 128;
 	static_assert(MAX_BLOCK <= BLOCK_ARCS, "blockArcs works out a block this long");
 
@@ -171,20 +174,18 @@ struct Crv : Cartridge, Probe {
 	Arc arc, arcSeen;
 	bool toldArc = false; // the last of my block has said, since the parse
 	bool joinedIn = false, joinedOut = false; // my start, my end joined to a neighbour, as the last says
-	// Where the arcs either side of me stand at the points I share with
-	// them, for the jump a screen draws dashed where they are not joined:
-	// the next one's start and the one before's end, NAN with none; from
-	// the arcs the settings make, as the screen's own arc, so a dash never
-	// trails a glide.
-	float nextA = NAN, prevB = NAN;
-	void arcTold(const Arc& a, const Arc& seen, bool in, bool out, float next, float prev) {
-		if (toldArc && a == arc && seen == arcSeen && in == joinedIn && out == joinedOut && next == nextA && prev == prevB)
+	// Where the arc before me stands at the point I share with it, for the
+	// jump a screen draws dashed under my start where the two are not
+	// joined: its end, NAN with none; from the arcs the settings make, as
+	// the screen's own arc, so a dash never trails a glide.
+	float prevB = NAN;
+	void arcTold(const Arc& a, const Arc& seen, bool in, bool out, float prev) {
+		if (toldArc && a == arc && seen == arcSeen && in == joinedIn && out == joinedOut && prev == prevB)
 			return;
 		arc = a;
 		arcSeen = seen;
 		joinedIn = in;
 		joinedOut = out;
-		nextA = next;
 		prevB = prev;
 		toldArc = true;
 		written();
@@ -275,13 +276,16 @@ struct Crv : Cartridge, Probe {
 		return clamp(knob, -10.f, 10.f);
 	}
 	Crv* left() { return static_cast<Crv*>(peer()); }
+	/** In a bond, walked by a Seq or with a CRV on my left: the parse's
+	word, so known before any wake, as the watch table asks it. */
+	bool inBond() const { return claimed() || ((int)slots.size() > S_PEER && child(S_PEER)); }
+	/** LINK or TYPE, a switch as set: the one way either is read. */
+	bool switchOn(int param) { return params[param].getValue() > 0.5f; }
 	/** Whether a CRV stands on my right: then it is the one that says. */
 	bool chained() const { return (told() & tree::TOLD_CHAINED) != 0; }
 
-	int useTold = -1;
 	void settle() override {
 		Cartridge::settle();
-		useTold = -1;
 		toldArc = false;
 	}
 
@@ -292,7 +296,7 @@ struct Crv : Cartridge, Probe {
 			Member* src = windowSource();
 			tellUse(at(sWindow), this, src && src != at(S_KIN), useTold);
 		}
-		bonded = claimed() || left() != nullptr;
+		bonded = inBond();
 		// IN holds my start in a bond, and pulled leaves it where it held it.
 		const bool startCabled = bonded && cv.live();
 		keepWhatTheCableLeft(kept, START_PARAM, startCabled);
@@ -308,8 +312,8 @@ struct Crv : Cartridge, Probe {
 		e = pointOf(endGlide.played(endSet));
 		cSet = bendNow();
 		c = bendOf(bendGlide.played(params[SHAPE_PARAM].getValue()));
-		link = params[LINK_PARAM].getValue() > 0.5f;
-		spline = params[TYPE_PARAM].getValue() > 0.5f;
+		link = switchOn(LINK_PARAM);
+		spline = switchOn(TYPE_PARAM);
 		if (!chained()) {
 			// The last of my block: every member's arc, mine among them.
 			Crv* m[MAX_BLOCK];
@@ -345,12 +349,11 @@ struct Crv : Cartridge, Probe {
 			}
 			const Arc* shown = gliding ? seen : arcs;
 			for (int i = 0; i < n - 1; i++)
-				m[i]->arcTold(arcs[i], shown[i], n > 1 && ls[i], js[i], shown[i + 1].a, n > 1 ? shown[(i + n - 1) % n].b : NAN);
+				m[i]->arcTold(arcs[i], shown[i], n > 1 && ls[i], js[i], n > 1 ? shown[(i + n - 1) % n].b : NAN);
 			arc = arcs[n - 1];
 			arcSeen = shown[n - 1];
 			joinedIn = n > 1 && ls[n - 1];
 			joinedOut = js[n - 1];
-			nextA = n > 1 ? shown[0].a : NAN;
 			prevB = n > 1 ? shown[n - 2].b : NAN;
 		}
 		else if (!toldArc) {
@@ -362,7 +365,7 @@ struct Crv : Cartridge, Probe {
 			arcSeen.a = pSet;
 			arcSeen.b = eSet;
 			joinedIn = joinedOut = false;
-			nextA = prevB = NAN;
+			prevB = NAN;
 		}
 		const bool reading = !bonded && cv.live();
 		// The place along the arc read in my window, as a CV reads a cable in
@@ -373,10 +376,10 @@ struct Crv : Cartridge, Probe {
 		// Bonded the jack is the start, whatever the arc has been told.
 		outVolts = sane(volts(reading ? arcAt(arc, x) : p));
 		ownAlong = reading ? x : -1.f;
-		nOut = reading && cv.plugged() ? std::max(inputs[IN_INPUT].getChannels(), 1) : 1;
+		nOut = reading ? cv.voices() : 1;
 		outPoly[0] = outVolts;
 		for (int ch = 1; ch < nOut; ch++)
-			outPoly[ch] = sane(volts(arcAt(arc, travelOf(inputs[IN_INPUT].getVoltage(ch)))));
+			outPoly[ch] = sane(volts(arcAt(arc, travelOf(cv.getVoice(ch)))));
 	}
 	float act(Signal& s, int color, int* value) override { return outVolts * 12.f; }
 	void publishJack() override {
@@ -409,7 +412,7 @@ struct Crv : Cartridge, Probe {
 		uint32_t bits;
 		std::memcpy(&bits, &x, sizeof bits);
 		const Arc& a = arc;
-		if (!(arcMemoKnown && bits == arcMemoX && a == arcMemo && a.k == arcMemo.k && a.up == arcMemo.up)) {
+		if (!(arcMemoKnown && bits == arcMemoX && a == arcMemo)) {
 			arcMemoV = arcAt(a, x);
 			arcMemoX = bits;
 			arcMemo = a;
@@ -444,10 +447,15 @@ struct Crv : Cartridge, Probe {
 			v[ch] = outPoly[ch];
 		return nOut;
 	}
-	int channelsHeard(int input) const override { return input == IN_INPUT ? PORT_MAX_CHANNELS : 1; }
+	/** Alone, IN may carry a channel a voice; bonded it is the start, one
+	value. */
+	int channelsHeard(int input) const override { return input == IN_INPUT && !inBond() ? PORT_MAX_CHANNELS : 1; }
 
-	/** What the last of my block reads of me, the arc it told me, and my jack. */
-	float goneP = 0.f, goneE = 0.f, goneC = 0.f, goneOut = 0.f;
+	/** What the last of my block reads of me, the arc it told me, and my
+	jack, every channel of it, as a reader of my channels takes them. */
+	float goneP = 0.f, goneE = 0.f, goneC = 0.f;
+	int goneN = 1;
+	float goneV[PORT_MAX_CHANNELS] = {};
 	Arc goneArc;
 	bool goneLink = false, goneType = false, goneIn = false, goneOutJ = false;
 	bool published() override {
@@ -460,7 +468,9 @@ struct Crv : Cartridge, Probe {
 		any |= moved(goneArc, arc);
 		any |= moved(goneIn, joinedIn);
 		any |= moved(goneOutJ, joinedOut);
-		any |= moved(goneOut, outVolts);
+		any |= moved(goneN, nOut);
+		for (int ch = 0; ch < nOut; ch++)
+			any |= moved(goneV[ch], outPoly[ch]);
 		return any;
 	}
 
@@ -685,7 +695,7 @@ struct Crv : Cartridge, Probe {
 		                                     : "Joining it closes the loop round to the first CRV's start.")
 		                        : "",
 		           end});
-		const bool k = params[TYPE_PARAM].getValue() >= 0.5f;
+		const bool k = switchOn(TYPE_PARAM);
 		const bool held = inputs[SHAPE_INPUT].isConnected();
 		Gestures shape{&G_CRV_TYPE};
 		if (block)
@@ -715,7 +725,7 @@ std::string ArcBendQuantity::getDisplayValueString() {
 	const bool shown = crv && crv->snapshot(a);
 	const float c = shown && crv->inputs[Crv::SHAPE_INPUT].isConnected() ? a.c : getValue();
 	const char* what;
-	if (crv && crv->params[Crv::TYPE_PARAM].getValue() >= 0.5f) {
+	if (crv && crv->switchOn(Crv::TYPE_PARAM)) {
 		// Nought is the sine where a sine can be, a ring or a lone spline
 		// CRV, whose tension there is the sine's rather than the rod's none,
 		// and which takes no slope from a bend joined to it.
@@ -763,6 +773,10 @@ struct CrvPanel : Panel {
 };
 
 struct ArcPoint;
+struct ArcFace;
+/** The face of a CRV's panel, held by its widget rather than searched for
+in its tree. */
+inline ArcFace* faceOf(ModuleWidget* mw);
 /** The point under the pointer, any CRV's: a joined start's neighbour
 draws its end's half of the diamond while it is hovered. */
 /** The point a stroke is setting just now, which a sweep hands on from module
@@ -820,7 +834,7 @@ struct ArcFace : Widget {
 		};
 		auto linkAt = [&](int i) {
 			Link m;
-			m.face = (*run)[i]->getFirstDescendantOfType<ArcFace>();
+			m.face = faceOf((*run)[i]);
 			m.crv = crvAt(i);
 			m.dx = (*run)[i]->box.pos.x - mw->box.pos.x;
 			m.x0 = 0.f;
@@ -1026,9 +1040,9 @@ struct ArcFace : Widget {
 inline std::vector<Crv*> blockOf(Widget* w, Crv* me) {
 	return touchingOf(w->getAncestorOfType<ModuleWidget>(), me);
 }
-/** The CRV after or before `me` in its block, round it; null alone. */
-inline Crv* besideIn(Widget* w, Crv* me, int side) {
-	const std::vector<Crv*> b = blockOf(w, me);
+/** The CRV after or before `me` in `b`, its block (`blockOf`), round it;
+null alone. A gesture asking several times takes the block once. */
+inline Crv* besideIn(const std::vector<Crv*>& b, Crv* me, int side) {
 	const int n = (int)b.size(), i = (int)(std::find(b.begin(), b.end(), me) - b.begin());
 	if (n < 2 || i >= n)
 		return nullptr;
@@ -1185,7 +1199,7 @@ struct ArcShape : Hovered<ScreenParam> {
 			members = blockOf(this, m);
 		else
 			members.push_back(m);
-		const bool spline = m->params[Crv::TYPE_PARAM].getValue() >= 0.5f;
+		const bool spline = m->switchOn(Crv::TYPE_PARAM);
 		if (spline ? Hand::among(G_CRV_SPLINE_VOLTS) : Hand::among(G_CRV_BEND_VOLTS)) {
 			// A notch is a volt of travel; a stroke past an end keeps
 			// none of it, so turning back lands on the next volt at once.
@@ -1256,7 +1270,7 @@ struct ArcShape : Hovered<ScreenParam> {
 		Crv* m = crv();
 		if (!m)
 			return;
-		const float to = m->params[Crv::TYPE_PARAM].getValue() >= 0.5f ? 0.f : 1.f;
+		const float to = m->switchOn(Crv::TYPE_PARAM) ? 0.f : 1.f;
 		std::vector<Crv*> members;
 		if (to > 0.5f ? Hand::among(G_CRV_ALL_SPLINES) : Hand::among(G_CRV_ALL_BENDS))
 			members = blockOf(this, m);
@@ -1334,34 +1348,32 @@ struct CrvWidget : MemberWidget {
 	bool born = false;
 	void step() override {
 		// What only the UI knows of my colour: the cable arriving and the bond.
-		if (Crv* c = dynamic_cast<Crv*>(module)) {
-			c->inRGB.store(cableColorOn(getInput(Crv::IN_INPUT)), std::memory_order_relaxed);
+		Crv* m = dynamic_cast<Crv*>(module);
+		if (m) {
+			m->inRGB.store(cableColorOn(getInput(Crv::IN_INPUT)), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this);
-			c->bondedUi.store(run && run->size() > 1, std::memory_order_relaxed);
+			m->bondedUi.store(run && run->size() > 1, std::memory_order_relaxed);
 			// My place in my block and a spline joined to a spline, for the
 			// words: the block as the hand reaches it (`touchingOf`).
-			const std::vector<Crv*> b = APP->scene && APP->scene->rack ? touchingOf(this, c) : std::vector<Crv*>(1, c);
-			const int n = (int)b.size(), i = (int)(std::find(b.begin(), b.end(), c) - b.begin());
-			c->placeUi.store(n < 2 || i >= n ? 0 : i == 0 ? 1 : i == n - 1 ? 3 : 2, std::memory_order_relaxed);
+			const std::vector<Crv*> b = APP->scene && APP->scene->rack ? touchingOf(this, m) : std::vector<Crv*>(1, m);
+			const int n = (int)b.size(), i = (int)(std::find(b.begin(), b.end(), m) - b.begin());
+			m->placeUi.store(n < 2 || i >= n ? 0 : i == 0 ? 1 : i == n - 1 ? 3 : 2, std::memory_order_relaxed);
 			bool run2 = false;
-			if (n >= 2 && i < n && c->params[Crv::TYPE_PARAM].getValue() >= 0.5f) {
-				const auto spline = [](Crv* x) { return x->params[Crv::TYPE_PARAM].getValue() >= 0.5f; };
-				run2 = (relaxed(c->joinedInNow) && spline(b[(i + n - 1) % n])) ||
-				       (relaxed(c->joinedOutNow) && spline(b[(i + 1) % n]));
-			}
-			c->splineRunUi.store(run2, std::memory_order_relaxed);
+			if (n >= 2 && i < n && m->switchOn(Crv::TYPE_PARAM))
+				run2 = (relaxed(m->joinedInNow) && b[(i + n - 1) % n]->switchOn(Crv::TYPE_PARAM)) ||
+				       (relaxed(m->joinedOutNow) && b[(i + 1) % n]->switchOn(Crv::TYPE_PARAM));
+			m->splineRunUi.store(run2, std::memory_order_relaxed);
 			// My end joined to a start its IN holds: the first's round the
 			// block, else the next's (`locked` on the start's point).
 			int held = 0;
-			if (n >= 2 && i < n && relaxed(c->joinedOutNow)) {
+			if (n >= 2 && i < n && relaxed(m->joinedOutNow)) {
 				Crv* next = b[(i + 1) % n];
 				if (next->startHeld())
 					held = i == n - 1 ? 1 : 2;
 			}
-			c->endHeldUi.store(held, std::memory_order_relaxed);
+			m->endHeldUi.store(held, std::memory_order_relaxed);
 		}
 		MemberWidget::step();
-		Crv* m = static_cast<Crv*>(module);
 		if (born || !m || APP->event->getDraggedWidget() == this)
 			return;
 		born = true;
@@ -1407,13 +1419,17 @@ struct CrvWidget : MemberWidget {
 			Crv* before = crvAt(me - 1) ? crvAt(me - 1) : crvAt(last);
 			Crv* after = crvAt(me + 1) ? crvAt(me + 1) : crvAt(first);
 			if (before && after && before != m && after != m && before != after &&
-			    after->params[Crv::LINK_PARAM].getValue() > 0.5f)
+			    after->switchOn(Crv::LINK_PARAM))
 				set(before, Crv::END_PARAM, after->params[Crv::START_PARAM].getValue());
 		}
 		pushJoined(all, fresh, true);
 		m->wake();
 	}
 };
+
+inline ArcFace* faceOf(ModuleWidget* mw) {
+	return static_cast<CrvWidget*>(mw)->face;
+}
 
 } // namespace
 

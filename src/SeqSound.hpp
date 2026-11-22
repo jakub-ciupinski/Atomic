@@ -38,7 +38,7 @@ header to include anywhere else. */
 			s.setVolts(v, color, Mapping());
 			Sound o;
 			m->sound(sub, s, color, o);
-			snd.voice[c] = o.band != NO_BAND && o.semis == 12.f * o.volts ? o.volts : o.semis / 12.f;
+			snd.voice[c] = o.lineVolts();
 			if (qf && o.band != NO_BAND)
 				qf->lightBand(o.band, color);
 			else if (qf && o.value >= 0)
@@ -80,9 +80,8 @@ header to include anywhere else. */
 			return snd;
 		}
 		// The member the step falls in, and the step within it.
-		const int at = std::min(block.indexAt(w.sounding), block.size() - 1);
-		const int within = w.sounding + block.skip - block.start[at];
-		Cartridge* stood = chain[at];
+		int within;
+		Cartridge* stood = block.memberOrLast(w.sounding, within);
 		// The member sounded: the one stood on, or in PREVIEW the one
 		// chosen by hand.
 		Cartridge* chosenMember = stood;
@@ -156,7 +155,7 @@ header to include anywhere else. */
 	Cartridge* fadeOf(Cartridge* stood, Cartridge* chosenMember, float& fadeA, const ThisWake& w) {
 		if (w.fade && !w.silent && !w.holding && chosenMember == stood && count > 1 &&
 		    !(w.once && !w.turning && w.tPlace + 1 >= cycle)) {
-			Cartridge* m2 = chain[std::min(block.indexAt(stepAt(w.tPlace + 1, count, dir)), block.size() - 1)];
+			Cartridge* m2 = block.memberOrLast(stepAt(w.tPlace + 1, count, dir));
 			if (m2 != stood) {
 				fadeA = clamp((float)w.tAlong, 0.f, 1.f);
 				return m2;
@@ -204,9 +203,9 @@ header to include anywhere else. */
 	void lightAhead(int rose, const ThisWake& w, const ProcessArgs& args) {
 		const bool wide = w.wide;
 		const int next = stepAt(w.tPlace + 1, count, dir);
-		const int at2 = std::min(block.indexAt(next), block.size() - 1);
-		Cartridge* m2 = chain[at2];
-		const int sub2 = wide ? -1 : next + block.skip - block.start[at2];
+		int within2;
+		Cartridge* m2 = block.memberOrLast(next, within2);
+		const int sub2 = wide ? -1 : within2;
 		Taken tk;
 		tk.light = true;
 		tk.n = wide ? std::min(m2->stepsOf(false), (int)TRG_RINGS) : 1;
@@ -299,9 +298,9 @@ header to include anywhere else. */
 		Cartridge* anchored = chosenMember;
 		int anchoredSub = sub;
 		if (w.phased && basePos != w.sounding) {
-			const int bat = std::min(block.indexAt(basePos), block.size() - 1);
-			anchored = chain[bat];
-			anchoredSub = w.gates ? (w.wide ? -1 : basePos + block.skip - block.start[bat]) : 0;
+			int within;
+			anchored = block.memberOrLast(basePos, within);
+			anchoredSub = w.gates ? (w.wide ? -1 : within) : 0;
 		}
 		anchored->anchor(lane, anchoredSub);
 		anchored->anchorAt(lane, w.phased ? baseAlongWork : -1.f);
