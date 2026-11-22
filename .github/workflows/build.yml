@@ -132,8 +132,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: The tag and plugin.json agree
-        # v2.0.0 or a pre-release of it, v2.0.0-beta.1, for plugin.json's
-        # 2.0.0: Rack reads the version from the manifest, never the tag.
+        # v2.0.4 or the beta of it, v2.0.4-beta, for plugin.json's
+        # 2.0.4: Rack reads the version from the manifest, never the tag.
         run: |
           tag="${GITHUB_REF_NAME#v}"
           manifest="$(jq -r .version plugin.json)"
@@ -159,7 +159,7 @@ jobs:
 
       - name: Draft release
         # Left a draft: its notes and its publishing are a person's. A tag
-        # with a hyphen in it (v2.0.0-beta.1) is marked a pre-release.
+        # with a hyphen in it (v2.0.4-beta) is marked a pre-release.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
