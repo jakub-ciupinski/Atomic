@@ -59,7 +59,7 @@ inline bool publishStack(Stack& s, PortWidget* port) {
 	}
 	if (same)
 		return false;
-	s.seq.fetch_add(1, std::memory_order_acq_rel);
+	Writing<uint32_t> whole(s.seq);
 	for (int i = 0; i < k; i++) {
 		const engine::Cable* c = cables[i]->cable;
 		s.ids[i].store(c->outputModule->id, std::memory_order_relaxed);
@@ -67,7 +67,6 @@ inline bool publishStack(Stack& s, PortWidget* port) {
 		s.rgbs[i].store(packRGB(cables[i]->color), std::memory_order_relaxed);
 	}
 	s.n.store(k, std::memory_order_relaxed);
-	s.seq.fetch_add(1, std::memory_order_acq_rel);
 	return true;
 }
 

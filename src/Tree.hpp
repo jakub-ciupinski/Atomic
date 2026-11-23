@@ -242,9 +242,22 @@ struct Node {
 	std::vector<Slot> slots; // parallel to declarations()
 	int place = -1; // index in the rig
 	bool dirty = true;
+	// Marked by more than my own ramp: a jack or a knob of mine, a child
+	// whose answer moved or that was itself stirred, a word written into me.
+	// And `own`, the first of those: what a child's answer may not carry
+	// (a ring clicked, a press held), so its readers are told all the same.
+	// See `markRamp` and `fineWake`.
+	bool whole = true, own = true;
 	bool always = false; // at every wake whatever the gate says: see atEveryWake()
 	bool touch = false;  // a node at every wake can reach it, so its reads are cleared: see build()
 	bool ranNow = false; // it evaluated in the wake being run
+	// Whether anything of mine has run, or anything been written into me,
+	// since whoever steps me last asked: an evaluate, a clear or a publish
+	// of a wake, a sample's private work. With none of it nothing I put out
+	// can have moved, which is what lets a host leave my jacks' light alone
+	// on such a sample (`JackGlow::tickJacks`). Set here and by the host,
+	// cleared by the host alone.
+	bool worked = true;
 	// Whether another node has written into me since my reads were last
 	// cleared (`holds`), and whether what I would publish may differ from
 	// what I last published (`moved`): see `written` and `evaluate`.
@@ -256,16 +269,19 @@ struct Node {
 	// leave it out.
 	bool publishesLive = false;
 	// A reader at every wake that plays its writer's ramp (`fine`, said by
-	// the node, `fineMoved` set when it changes), and what a wake asked
-	// only for such readers runs and clears (`fineGroup`).
+	// the node as it evaluates, and `evaluate` tells the host when it
+	// changes), and what a wake asked only for such readers runs and clears
+	// (`fineGroup`).
 	bool fine = false;
 	bool fineRun = false, fineReach = false;
-	// Whether the wake running me, gated, was asked for the fraction alone:
-	// set by the host as it runs me, so a reader can tell that nothing but
-	// its own ramp can have moved since it last ran.
+	// Whether the wake running me, gated, is for the fraction alone as far
+	// as I am concerned: the whole wake was asked for nothing else, or it was
+	// asked for something that marked others and nothing but my own ramp
+	// marked me (`rampsApart`). Set by the host as it runs me, so a reader
+	// can tell that nothing but its own ramp can have moved since it last ran.
 	bool fineWake = false;
 	std::vector<Node*> reached; // an at-every-wake node's reach, itself among it, as `fineGroup` found it
-	void setFine(bool f);
+	void setFine(bool f) { fine = f; }
 
 	virtual ~Node() {}
 	/** The slots wanted, in the order they are filled and indexed. */
@@ -340,14 +356,17 @@ struct Node {
 	`published`). Marking every ancestor before anything is worked out would
 	make a jack moving at audio rate re-evaluate the whole rig forty-eight
 	thousand times a second. */
-	void markDirty() { dirty = true; }
+	void markDirty() { dirty = whole = own = true; }
+	/** The mark a node's own ramp makes, its fine tick: it is to run, and
+	for the fraction alone unless something else marks it too. */
+	void markRamp() { dirty = true; }
 	/** Another node has written into me in this wake: a lane, a playhead,
 	a reader's colour, a lit key, an arc told, a use said. Every such write
 	calls it, because it is the only way the host learns that a node it
 	did not run has anything new to clear or to publish. A write that
 	forgets it leaves a screen a wake stale or lit after its playhead has
 	gone, which the quiet check (`checkQuiet`) catches. */
-	void written() { holds = moved = true; }
+	void written() { holds = moved = whole = worked = true; }
 	/** The size of the whole object, for the quiet check that a clear or a
 	publish the host leaves out would have changed nothing: written by
 	MEMBER_FOOTPRINT, which ROW_MANIFEST and every member says, nought for a
@@ -429,7 +448,7 @@ private:
 	its that relays it. */
 	static void hear(Node* to, uint32_t what);
 	friend void build(const std::vector<Node*>& rig);
-	friend void evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly);
+	friend bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly, bool rampsApart);
 	friend std::string print(const std::vector<Node*>& rig);
 	friend void fineGroup(const std::vector<Node*>& rig, FineScratch& scratch);
 	friend struct Inspect; // a headless test's window on the edges, defined outside the plugin
@@ -439,19 +458,40 @@ private:
 void build(const std::vector<Node*>& rig);
 /** One evaluation of the rig, children before parents: clear the reads,
 then evaluate the nodes that need it in rig order, passing the change on to
-whoever reads a node whose answer moved, and hand the screens the lot. */
-void evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly = false);
+whoever reads a node whose answer moved, and hand the screens the lot.
+
+`fineOnly` is a wake asked for the fraction alone, which runs the fine group
+and nothing else. `rampsApart` is a wake asked for more, by a jack or a child
+somewhere in the rig, on a sample that swept and rebuilt nothing: every node
+runs as the gate says, and a node marked by nothing but its own ramp is told
+its wake is a fine one, since what moved was another's. Without it a cable
+at audio rate anywhere in a rig makes every reader's wake a whole one.
+
+Returns whether a node's `fine` changed as it ran, so the host whose wake it
+is knows to work its fine group out again. A `fine` changes only inside its
+node's own `evaluate`, so the answer is this rig's and rings no other, where
+a plugin-wide serial would make every rig in the patch rework its group for
+one Seq's glide, and a thread's own flag is a call to reach on Windows. */
+bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly = false,
+              bool rampsApart = false);
 /** The gate, off: every node evaluated whether or not anything it reads
 moved. The headless tests run one copy of every patch each way and require
 them to agree sample for sample; nothing else ever turns it off. */
 extern bool gating;
 /** Two counters the bench reads: wakes of the rig and evaluations of a
-single node. Nothing but the bench looks at them, and nothing turns on
-them; they are how a number like "one node a sample instead of a hundred"
-is checked rather than claimed. A thread's own, since two rigs' hosts may
-wake at once on two engine threads. */
+single node. Nothing but the bench and the headless tests looks at them, and
+nothing turns on them; they are how a number like "one node a sample instead
+of a hundred" is checked rather than claimed. A thread's own, since two rigs'
+hosts may wake at once on two engine threads, and so kept by the dev form
+alone, told once at a wake's end: the release form, which nobody counts,
+reaches for no thread's variable in a wake. */
+#ifdef ATOMIC_DEV
 extern thread_local long long wakes;
 extern thread_local long long runs;
+/** And the evaluations a whole wake told were for the fraction alone
+(`rampsApart`), a thread's own as they are. */
+extern thread_local long long ramps;
+#endif
 /** The check on the quiet nodes (the third pass of `evaluate`): the
 host clears and publishes every node it reaches, the quiet ones included,
 and counts in `quietBroken` every clear or publish it would have left out
@@ -459,13 +499,6 @@ that changed a byte of the node. Nothing but the headless tests turns it
 on. */
 extern bool checkQuiet;
 extern long long quietBroken;
-/** Set whenever a node's `fine` changes, so the host whose wake it is knows
-to work its fine group out again. A `fine` changes only inside its rig's
-`evaluate`, which one thread runs whole, so the thread's own flag is that
-rig's: cleared by its host before the wake and read after, it rings no other
-rig, where a plugin-wide serial would make every rig in the patch rework
-its group for one Seq's glide. */
-extern thread_local bool fineMoved;
 /** The fine group: the readers at every wake that play their writer's ramp,
 and every reader at every wake that shares anything but a Clock with them,
 read or written, to a fixed point; `fineRun` on those, and `fineReach` on

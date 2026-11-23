@@ -223,7 +223,7 @@ struct Cartridge : Member, MemberFace {
 	ROW_SLOT_IS(M_CRV, S_PEER, "peer");
 	ROW_SLOT_IS(M_OUT, S_PEER, "peer"); // a lit Atn: its peer makes it one of a block a Seq walks
 	ROW_SLOT_IS(M_VCA, S_PEER, "peer");
-	Mapping winIn, winOut;
+	Sealed winIn, winOut;
 	int nlanes = 0;      // playheads walking my block, registered at build
 	int laneColor[MAX_LANES] = {};
 	bool laneLit[MAX_LANES] = {};
@@ -287,7 +287,7 @@ struct Cartridge : Member, MemberFace {
 		}
 		users[i] = {by, on};
 		written();
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 	bool usedNow() const {
 		if (nusers == 0)
@@ -451,7 +451,7 @@ struct Cartridge : Member, MemberFace {
 		else
 			unfeed();
 	}
-	const Mapping* windowOut() override { return (traits & tree::T_SHAPER) ? &winOut : nullptr; }
+	const Sealed* windowOut() override { return (traits & tree::T_SHAPER) ? &winOut : nullptr; }
 	/** Whose window I take: my window slot's, the nearest shaper to my left,
 	whatever it serves. An Atn replaces what the Atn before it left
 	(`shapeAtn`) and the window passes through a Qnt, so there is nothing to
@@ -476,11 +476,10 @@ struct Cartridge : Member, MemberFace {
 		}
 	}
 	/** The window arriving: my window source's lane, or plain. */
-	const Mapping& windowArriving() {
-		static const Mapping plain;
+	const Sealed& windowArriving() {
 		Member* c = windowSource();
-		const Mapping* m = c ? c->laneOut() : nullptr;
-		return m ? *m : plain;
+		const Sealed* m = c ? c->laneOut() : nullptr;
+		return m ? *m : Sealed::none();
 	}
 	bool holding() override { return heldNow; }
 	bool previewing() override { return heldNow || hoveredNow; }
@@ -517,11 +516,11 @@ struct Cartridge : Member, MemberFace {
 			lanesPacked.store(lanes, std::memory_order_relaxed);
 			return;
 		}
-		lanesGen.fetch_add(1, std::memory_order_release); // odd: writing
-		std::atomic_thread_fence(std::memory_order_release);
-		lanesPacked.store(lanes, std::memory_order_relaxed);
-		weightsPacked.store(weights, std::memory_order_relaxed);
-		lanesGen.fetch_add(1, std::memory_order_release); // even: whole
+		{
+			Writing<uint32_t> both(lanesGen);
+			lanesPacked.store(lanes, std::memory_order_relaxed);
+			weightsPacked.store(weights, std::memory_order_relaxed);
+		}
 		weightsWas = weights;
 	}
 	/** A Seq in Fade weighing its playhead on me (`Seq::soundStep`): lane
@@ -531,7 +530,7 @@ struct Cartridge : Member, MemberFace {
 		written();
 		if (lane < 0 || lane >= nlanes)
 			return;
-		laneDim[lane] = (uint8_t)(255 - (int)std::lround(clamp(k, 0.f, 1.f) * 255.f));
+		laneDim[lane] = (uint8_t)(255 - wholeOf(clamp(k, 0.f, 1.f) * 255.f));
 		laneDimHalo[lane] = halo;
 	}
 	void clearReads() override {
@@ -576,11 +575,11 @@ struct Cartridge : Member, MemberFace {
 		if (lane >= 0 && lane < nlanes)
 			laneBase[lane] = true;
 	}
-	const tree::Node* quantOf() override { return winIn.quantNode; }
+	const tree::Node* quantOf() override { return winIn->quantNode; }
 
-	/** The subclass's state from the window arriving: a Qnt's scale, a CV's
-	map. */
-	virtual void prepare(const Mapping& win, const ProcessArgs& args) {}
+	/** The subclass's state from the window arriving, handed under its seal:
+	a Qnt's scale, a CV's map. */
+	virtual void prepare(const Sealed& win, const ProcessArgs& args) {}
 	/** The window transform of a shaper; nothing for a source. */
 	virtual void shape(Mapping& m) {}
 	/** The same on a fresh window, as though nothing stood to my left: an
@@ -603,15 +602,15 @@ struct Cartridge : Member, MemberFace {
 
 	void evaluate(const ProcessArgs& args) override {
 		pullFeed();
-		winIn = windowArriving();
+		winIn.take(windowArriving());
 		prepare(winIn, args);
 		// A press on the screen holds for a moment, for a Seq's preview.
-		if (touched.exchange(false))
+		if (taken(touched))
 			holdUntil = args.frame + (int64_t)(0.1f * args.sampleRate);
 		heldNow = holdUntil >= 0 && args.frame < holdUntil;
 		if (!heldNow)
 			holdUntil = -1;
-		if (hovered.exchange(false))
+		if (taken(hovered))
 			hoverUntil = args.frame + (int64_t)(0.1f * args.sampleRate);
 		hoveredNow = hoverUntil >= 0 && args.frame < hoverUntil;
 		if (!hoveredNow)
@@ -622,9 +621,9 @@ struct Cartridge : Member, MemberFace {
 		Signal none;
 		int value = -1;
 		out = act(none, -1, &value);
-		winOut = winIn;
+		winOut.take(winIn);
 		if (acting && shapes())
-			shape(winOut);
+			shape(winOut.edit());
 		actingWork = acting;
 		colorWork = -1;
 		publishJack();
@@ -654,36 +653,40 @@ struct Cartridge : Member, MemberFace {
 	a block of Atns each fed a signal is a sequential switch, the step being
 	that Atn's cable at that Atn's top. A source sets itself from its cable
 	in `act` already. */
-	void sound(int sub, const Signal& sig, int col, Sound& o) override {
-		o.window = winIn;
-		shape(o.window);
+	void sound(int sub, const Signal& sig, int col, Sound& o) override { soundSignal(sub, sig, col, o); }
+	/** The same, saying whether a signal was sounded at all, the reader's or
+	my own cable's, for a Qnt, which sounds its keyboard where there was
+	none. */
+	bool soundSignal(int sub, const Signal& sig, int col, Sound& o) {
+		o.takeWindow(winIn);
+		Mapping& win = o.editWindow();
+		shape(win);
 		// A quantizer a reader walks hands on the reader's colour with its
 		// scale, for the boxes of the steps it quantizes.
 		if (traits & tree::T_QNT)
-			o.window.quantColor = col;
-		o.signal = sig;
-		if (!o.signal.present && cv.live() && !(traits & tree::T_SOURCE))
-			o.signal.setVolts(cv.get(), col, Mapping());
-		o.semis = act(o.signal, col, &o.value);
+			win.quantColor = col;
+		Signal s = sig;
+		if (!s.present && cv.live() && !(traits & tree::T_SOURCE))
+			s.setVolts(cv.get(), col, *Sealed::none());
+		o.semis = act(s, col, &o.value);
 		// A Qnt handed a signal sounds the note it snapped the signal to,
 		// which `quantStage` made an integer and returned as a float, so the
 		// round is exact; never its own note, which under a cable in ROUTE
 		// would light C whatever played.
-		o.note = (traits & tree::T_QNT) && o.signal.present ? noteActed(o.semis) : litSemis(sub);
+		o.note = (traits & tree::T_QNT) && s.present ? noteActed(o.semis) : litSemis(sub);
 		o.band = litBand(sub);
 		if (o.band != NO_BAND)
-			o.volts = o.signal.present ? o.signal.voltsNow() : o.semis / 12.f;
-		if (o.signal.present)
-			o.signal.color = col;
+			o.volts = s.present ? s.voltsNow() : o.semis / 12.f;
+		return s.present;
 	}
 	/** The whole semitone `act` snapped to, which a quantizer detuned by
 	cents cannot give back by rounding what it sounds. */
-	virtual int noteActed(float semis) { return (int)std::round(semis); }
+	virtual int noteActed(float semis) { return wholeOf(semis); }
 	int bundle(float* v) override {
 		v[0] = out / 12.f;
 		return 1;
 	}
-	int litSemis(int sub) override { return (int)std::round(out); }
+	int litSemis(int sub) override { return wholeOf(out); }
 };
 
 } // namespace rig

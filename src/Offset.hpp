@@ -16,10 +16,10 @@ the retired Ofs module's own code, lifted into the Atn rather than written
 again, so the Atn's offset lane behaves as the Ofs did by construction, the
 same unit, the same shift of a window, the same everything.
 
-The owner feeds it the window arriving, through `prepared`, and hands it the
-bar, minus one to one, with every question it asks: `shape` on a window, `act`
-on a reader's cable, and `shift` for a jack, each taking the bar as `amount`
-in the unit the owner worked it out in. */
+The owner tells it whether the window arriving is in pitch, through
+`prepared`, and hands it the bar, minus one to one, with every question it
+asks: `shape` on a window, `act` on a reader's cable, and `shift` for a jack,
+each taking the bar as `amount` in the unit the owner worked it out in. */
 struct OfsCore {
 	// UNIT_ROLL: semitones still, but free, a count of cents, for an Atn its
 	// CV holds over a roll (`HELD_ROLL`), which transposes the chord as one.
@@ -35,16 +35,15 @@ struct OfsCore {
 	as far because a keyboard came into view. */
 	static const int SEMI_REACH = 12 * MAX_VOLTS;
 
-	static int semis(float amount) { return (int)std::round(amount * (float)SEMI_REACH); }
+	static int semis(float amount) { return wholeOf(amount * (float)SEMI_REACH); }
 	static float volts(float amount) { return amount * (float)MAX_VOLTS; }
 	/** The bar as cents, a hundred to the semitone: a count, whole from the
 	param on. */
-	static int cents(float amount) { return (int)std::round(amount * (float)(SEMI_REACH * 100)); }
-	/** The bar's unit: semitones with a quantizer in reach, before it or
-	after it (`notes`, what the owner was told), else volts. */
-	void prepared(const Mapping& win, bool notes = false) {
-		unitWork = win.musical() || notes ? UNIT_SEMIS : UNIT_VOLTS;
-	}
+	static int cents(float amount) { return wholeOf(amount * (float)(SEMI_REACH * 100)); }
+	/** The bar's unit: semitones with a quantizer in reach, before it
+	(`musical`, the window the owner reads being in pitch) or after it
+	(`notes`, what the owner was told), else volts. */
+	void prepared(bool musical, bool notes = false) { unitWork = musical || notes ? UNIT_SEMIS : UNIT_VOLTS; }
 	/** The unit is worked out in the wake and handed to the screen at its
 	end, with everything else the owner publishes. */
 	void publish() { unit.store(unitWork, std::memory_order_relaxed); }

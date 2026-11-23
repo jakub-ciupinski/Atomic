@@ -62,6 +62,13 @@ struct Gap : Module, Bonder {
 
 	Gap() { config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN); }
 	bool bondsLeft() override { return true; }
+	// The bond runs on across me to a RIG's molecule, and the host of the
+	// rig at my right keeps the RIG it found there until the topology moves
+	// (`Host::meet`), so I ring for whatever a member rings for.
+	void onRemove(const RemoveEvent& e) override { rig::bumpTopology(); }
+	void onExpanderChange(const ExpanderChangeEvent& e) override { rig::bumpTopology(); }
+	void onBypass(const BypassEvent& e) override { rig::bumpTopology(); }
+	void onUnBypass(const UnBypassEvent& e) override { rig::bumpTopology(); }
 };
 
 /** The plate, its title fading by the clock on the wall: the module's widget

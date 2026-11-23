@@ -4,6 +4,7 @@
 
 #include <rack.hpp>
 #include <cstdio>
+#include <initializer_list>
 #include <string>
 
 namespace rig {
@@ -52,8 +53,10 @@ inline json_t* loadSetting(const char* key) {
 }
 
 /** The plugin's setting `key` written as `valueJ` (which it takes), every
-other key in Atomic.json kept as it stands. */
-inline void saveSetting(const char* key, json_t* valueJ) {
+other key in Atomic.json kept as it stands but the `retired` ones, keys a
+setting was once saved under, dropped in the same write so they do not
+linger in a user's file. */
+inline void saveSetting(const char* key, json_t* valueJ, std::initializer_list<const char*> retired = {}) {
 	json_t* rootJ = loadJson(pluginSettingsPath());
 	if (!rootJ || !json_is_object(rootJ)) {
 		if (rootJ)
@@ -61,6 +64,8 @@ inline void saveSetting(const char* key, json_t* valueJ) {
 		rootJ = json_object();
 	}
 	json_object_set_new(rootJ, key, valueJ);
+	for (const char* k : retired)
+		json_object_del(rootJ, k);
 	saveJson(rootJ, pluginSettingsPath(), JSON_INDENT(2));
 	json_decref(rootJ);
 }

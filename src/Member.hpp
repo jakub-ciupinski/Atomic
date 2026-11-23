@@ -109,6 +109,17 @@ for a cable, but the watch table does, so the two have their own counters and
 a patch being played bumps neither. */
 uint32_t wiring();
 void bumpWiring();
+/** The bell, the same idea for what is asked of a rig from outside its wake:
+rung whenever any member of the plugin is poked or asked to reset
+(`Member::wake`, `Member::askReset`). A doorbell as the topology is: while it
+stands, no member of mine can have been asked anything, so a rig nobody is
+touching reads this one counter a sample where it read two flags of every
+member; when it moves, every host looks at its own members' flags and most
+find nothing. The flag is stored before the bell is rung and the bell is rung
+release and read acquire, so a host that sees the ring sees the flag, and one
+that reads the bell a moment too early sees the ring on its next sample. */
+uint32_t rung();
+void ring();
 
 /** One number the host watches: where it lives, what it read there last, and
 whose it is.
@@ -151,6 +162,37 @@ struct ChanWatch {
 	Member* owner;
 };
 
+struct Member;
+/** A RIG, as the host of a rig in its molecule knows it: what the patch
+performing on the scenes asks of that rig, a recall, a restart or both, made
+by nobody but the rig's host, on the host's own thread, at the head of its
+sample (rule 15: one engine thread per rig). The RIG's process() may run on
+another of Rack's threads at the same moment as the host's, so it writes
+nothing into a member, not a param, not a flag: it writes its ask down under
+its own lock, moves `askedNow`, and every host that finds it at the left of
+its molecule (`Host::meet`) takes the ask whole when it sees the serial
+move. */
+struct Recaller {
+	/** Which RIG this is, for a host that kept its address: an address is
+	handed out again, a serial never. */
+	const uint32_t born;
+	/** Moved by the RIG, on its own thread, after every ask it writes down. */
+	std::atomic<uint32_t> askedNow{0};
+	Recaller() : born(nextBorn()) {}
+	virtual ~Recaller() {}
+	/** A host's thread: the ask as it stands, answered on `members`, the
+	host's own. `met` is the frame the host found this RIG on, and an ask made
+	before it is not the host's to answer, only to mark taken; `restarts` is
+	the count of restarts the host has taken, brought up to date, and
+	`restart` is set when it moved. False, and nothing taken, while the
+	bank is held: the host asks again on its next sample. */
+	virtual bool answer(const std::vector<Member*>& members, int64_t met, uint32_t& taken, uint32_t& restarts, bool& restart) = 0;
+	static uint32_t nextBorn() {
+		static std::atomic<uint32_t> counter{1};
+		return counter.fetch_add(1, std::memory_order_relaxed);
+	}
+};
+
 /** What only the host of a rig holds: the rig it computes, re-derived when
 the topology epoch moves, the same members as the tree sees them, the watch
 table and the tick list. A module makes one on the first sample it hosts and
@@ -158,7 +200,7 @@ drops it the moment it stops, so no other member carries any of it, and its
 sample is `sample` (Engine.cpp). */
 struct Host {
 	bool ran = false;       // computed at least once
-	bool fineStale = true;  // a node's `fine` has moved since the fine group was worked out (`tree::fineMoved`)
+	bool fineStale = true;  // a node's `fine` has moved since the fine group was worked out (`tree::evaluate` says so)
 	std::vector<Member*> members;
 	std::vector<tree::Node*> nodes;
 	std::vector<Member*> tickers;  // the members that asked for the tick
@@ -178,9 +220,26 @@ struct Host {
 	std::vector<ChanWatch> liveCounts; // and every cabled one's, swept every sample
 	std::vector<Member*> stirs;     // the members the sweep marked this sample
 	uint32_t knownWiring = 0;          // the wiring the table was written at
+	uint32_t knownBell = 0;            // the bell as it stood when the members' flags were last looked at,
+	bool bellKnown = false;            // which a parse forgets: a member may come with a flag another host never took
 	std::vector<Member*> walked;    // the run as `regrouped` last walked it, kept for its capacity
 	tree::FineScratch fine;            // what `fineGroup` works in, sized at bond
 	uint32_t parses = 0;               // times `bond` has run, which a test counts
+	// The RIG my rig is in the molecule of, or none, looked for whenever the
+	// topology moves, and what I have taken of its asks.
+	Recaller* recaller = nullptr;
+	uint32_t recallerBorn = 0;
+	int64_t recallerMet = 0;   // the frame I found it on: an ask older than that was never mine
+	bool askOwed = false;      // found this sample or not yet answered: ask whatever the serial says
+	uint32_t askTaken = 0, restartsTaken = 0;
+	bool restartOwed = false;  // an ask's restart, for this sample's sweep to make with a pressed RESET's
+	/** The RIG at the left of my molecule found afresh, `self` my leftmost
+	member, on frame `frame`. */
+	void meet(Member* self, int64_t frame);
+	/** The RIG's ask, if one stands that I have not taken: answered on my
+	members, before anything of this sample reads a param. Whether one was
+	answered. */
+	bool takeAsk();
 	/** Whether the rig must be parsed afresh, asked when the topology epoch
 	moves: the run walked again is not `members`, or one of it owes a parse
 	or finds its setting moved since the last. Compares pointers and reads
@@ -212,7 +271,10 @@ changed: a control moved (looked at every few dozen samples), a tick or
 trigger fell, a member asked for a wake, or the rig was rearranged.
 Otherwise every jack holds its last value. */
 struct Member : Module, JackGlow, tree::Node {
-	std::atomic<bool> poke{true}; // something outside asks for a wake
+	/** Something outside asks for a wake. Written through `wake` alone, which
+	rings the bell the host listens for (`rung`); a store made beside it would
+	wait for somebody else's ring. */
+	std::atomic<bool> poke{true};
 	/** The bracket's RESET: whether anything in my rig is off the line a Sync
 	would put it on, as a Trg's roll shows an empty ring, written by the host
 	into every member after a wake; and a press of the word on the bracket,
@@ -223,9 +285,14 @@ struct Member : Module, JackGlow, tree::Node {
 	std::atomic<bool> rigOffNow{false};
 	std::atomic<bool> rigResettableNow{false};
 	std::atomic<bool> resetAsked{false};
+	/** The press, from whichever thread makes it: the flag, then the bell. */
+	void askReset() {
+		resetAsked.store(true, std::memory_order_relaxed);
+		ring();
+	}
 	/** The engine frame my rig last started or was restarted on, its first
 	sample computed or a reset taken (the bracket's RESET, a RIG's change of
-	scene or a rig loaded), or `NEVER_STARTED`. Written by my rig's host,
+	scene or a rig loaded, `Recaller`), or `NEVER_STARTED`. Written by my rig's host,
 	read by the RIG to my left, which may run on another thread, two rigs'
 	hosts running at once, so an atomic; a RIG asks it only on an edge at NEXT or PREV, to
 	tell the pulse a start gives from a pulse of the patch's own
@@ -378,13 +445,18 @@ struct Member : Module, JackGlow, tree::Node {
 	between. Without it a Qnt costs the sweep of two hundred and forty keys
 	every control period. */
 	virtual bool watches(int param) { return true; }
-	/** Ask for a wake from outside the audio thread: a widget that has
-	written an atomic the rig reads. */
-	void wake() { poke.store(true, std::memory_order_relaxed); }
+	/** Ask for a wake from outside the wake: a widget that has written an
+	atomic the rig reads, an event of Rack's, a member's own sample asking
+	for the next. The flag, then the bell. */
+	void wake() {
+		poke.store(true, std::memory_order_relaxed);
+		ring();
+	}
 	/** A RIG's recall, by its jacks or by the hand: the params it has just
 	set land at once, never glided (`Glide`), since a scene change is no stroke and resets the molecule on
-	the sample it is heard. Called after the params are set, from whichever
-	thread recalls; taken once by my own `everySample` (`landing`). */
+	the sample it is heard. Called after the params are set, by my rig's host
+	answering the RIG's ask or by the hand on the UI thread; taken once by my
+	own `everySample` (`landing`). */
 	std::atomic<bool> landAsked{false};
 	void land() {
 		landAsked.store(true, std::memory_order_release);
@@ -392,7 +464,7 @@ struct Member : Module, JackGlow, tree::Node {
 	}
 	/** Whether a recall asked my glides to stand on their settings, taken
 	once, on the engine's thread for my rig. */
-	bool landing() { return relaxed(landAsked) && landAsked.exchange(false, std::memory_order_acquire); }
+	bool landing() { return taken(landAsked, std::memory_order_acquire); }
 
 	// Who stands where is the walk's to find, so a move only rings; what a
 	// module holds is not, so an add, a load or a bypass owes a parse.
@@ -422,7 +494,7 @@ struct Member : Module, JackGlow, tree::Node {
 	what the patch sounds like, as BLEP and Oversampling are: a scene holds my params and after them these, in this order (`rig::Scene`).
 	Each is a float to the scene, and either whole, taken from the nearer
 	scene in a morph as a snapped param is, or continuous, drawn between.
-	`setSceneSetting` is called by a recall on the audio thread as well as the
+	`setSceneSetting` is called by a recall on my rig's host's thread as well as the
 	UI's, so it stores an atomic and nothing more. None by default: a look (a
 	GAP's skin) or a drawing's memory (a Crv's end) is no sound. */
 	virtual int sceneSettings() { return 0; }
@@ -441,7 +513,7 @@ struct Member : Module, JackGlow, tree::Node {
 	// not skipped. A module with state of its own resets it and calls this.
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
-		poke.store(true);
+		wake();
 	}
 	// Randomize, the same way: what Rack's own does is every param's
 	// `randomize`; ours is that, less what `rolled` keeps still.
@@ -451,18 +523,18 @@ struct Member : Module, JackGlow, tree::Node {
 			if (pq && pq->randomizeEnabled && rolled((int)p))
 				pq->randomize();
 		}
-		poke.store(true);
+		wake();
 	}
 	/** Whether Randomize rolls a param: a module says no for the transport, a
 	Clock's RUN and a Seq's mode. Asked here rather than by turning
 	`randomizeEnabled` off, because that is how Rack says a param is a
 	momentary button, and the rig sweeps those every sample (`Watch`). */
 	virtual bool rolled(int param) { return true; }
-	void onSampleRateChange(const SampleRateChangeEvent& e) override { poke.store(true); }
+	void onSampleRateChange(const SampleRateChangeEvent& e) override { wake(); }
 	// A cable is the one thing that changes what there is to watch, so it
 	// moves the wiring epoch as well as asking for a wake.
 	void onPortChange(const PortChangeEvent& e) override {
-		poke.store(true);
+		wake();
 		bumpWiring();
 	}
 
@@ -493,8 +565,12 @@ struct Member : Module, JackGlow, tree::Node {
 	// a `published` override that adds to this, as an Atn's jack does. A
 	// value written sideways into a neighbour's field is invisible here and
 	// the rig goes stale; there are none.
-	Mapping goneWin;
+	Sealed goneWin;
 	Count goneCount;
+	// Whether a count was handed on last time: where none was and none is,
+	// what is kept is the empty one already, and there is nothing to hold
+	// against it. All but a driver, at every wake.
+	bool goneCounted = false;
 	int goneColor = -1;
 	/** Whether `now` differs from what was handed on last time, which it
 	then becomes. */
@@ -508,15 +584,18 @@ struct Member : Module, JackGlow, tree::Node {
 	bool published() override {
 		// Compared where they stand, against empties that live as long as the
 		// program, so no wake copies a window or a count.
-		static const Mapping noWindow;
 		static const Count noCount;
 		bool any = false;
 		// The lane, which is the window for a shaper and, for a CV or a CRV,
-		// the window it reads, which the next block of its kind takes.
-		const Mapping* w = laneOut();
-		any |= moved(goneWin, w ? *w : noWindow);
+		// the window it reads, which the next block of its kind takes; by its
+		// seal where it has one, one integer (`Sealed::moved`).
+		const Sealed* w = laneOut();
+		any |= Sealed::moved(goneWin, w ? *w : Sealed::none());
 		const Count* c = countOut();
-		any |= moved(goneCount, c ? *c : noCount);
+		if (c || goneCounted) {
+			any |= moved(goneCount, c ? *c : noCount);
+			goneCounted = c != nullptr;
+		}
 		any |= moved(goneColor, readerColor());
 		return any;
 	}
@@ -524,17 +603,17 @@ struct Member : Module, JackGlow, tree::Node {
 	// ---- The faces this node plays, null by default, asked for at use and
 	// never cached. A node that forwards, a Seq, answers with the
 	// member under its playhead.
-	virtual const Mapping* windowOut() { return nullptr; }
+	virtual const Sealed* windowOut() { return nullptr; }
 	/** The window a node hands the next block of its lane: a shaper's window,
 	and a CV's or a CRV's own, the window it reads, which the next block of
 	its kind takes when no Qnt (for a CV) or no Atn (for a CRV) stands in its
 	own gap. */
-	virtual const Mapping* laneOut() { return windowOut(); }
+	virtual const Sealed* laneOut() { return windowOut(); }
 	/** The window my own jack's signal was played in, for an OUT Atn reading
 	it to know whether it carries notes and of which pattern: a CV's window,
 	which is its lane, by default; a Seq's step's window where it sounds notes
 	of one; nothing for a jack that is volts, a CRV's, a Poly's, a Mix's. */
-	virtual const Mapping* playedOut() { return laneOut(); }
+	virtual const Sealed* playedOut() { return laneOut(); }
 	/** A setting of mine that is a change of the parse has moved since the
 	last one: an Atn's mode. The host asks every member on the control
 	period, before it looks at the topology, so a rig and its twin reparse on

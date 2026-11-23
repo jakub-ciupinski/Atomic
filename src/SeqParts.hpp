@@ -347,7 +347,7 @@ struct DirCell : MarkCell {
 	bool can() override { return !(seq && seq->stepIdle()); }
 	// Round the directions as the mode button rounds its modes
 	// (`Seq::modeAfter`), one plain click a step (`stepRound`).
-	float next(float v) override { return (float)stepRound((int)std::round(v), 1, DIRS); }
+	float next(float v) override { return (float)stepRound(wholeOf(v), 1, DIRS); }
 };
 
 /** The step screen, the top one, as a parameter. Driven, it is not a
@@ -437,7 +437,7 @@ struct StepParam : VerticalDragParam {
 		holdAccum += dy;
 		const int n = std::max(m->shownCount(), 1);
 		holdAccum = clamp(holdAccum, (float)(holdFrom - (n - 1)) * pxPerUnit, (float)holdFrom * pxPerUnit);
-		m->holdPos.store(clamp(holdFrom - (int)std::round(holdAccum / pxPerUnit), 0, n - 1), std::memory_order_relaxed);
+		m->holdPos.store(clamp(holdFrom - wholeOf(holdAccum / pxPerUnit), 0, n - 1), std::memory_order_relaxed);
 		m->wake();
 	}
 	void onDragEnd(const DragEndEvent& e) override {

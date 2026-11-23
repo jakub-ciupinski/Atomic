@@ -112,15 +112,33 @@ struct Mapping {
 	disagreeing about what rig they are in. Nothing is quantized until a note
 	is picked, so nothing is musical either. */
 	bool musical() const { return quantized(); }
-	bool operator==(const Mapping& o) const {
-		return reach == o.reach && preShift == o.preShift && postShift == o.postShift && landSemis == o.landSemis &&
-		       scale == o.scale &&
-		       spanned == o.spanned && quantNode == o.quantNode && quantColor == o.quantColor &&
-		       rollGain == o.rollGain && rollCents == o.rollCents && divOrigin == o.divOrigin && divGain == o.divGain &&
-		       divCentre == o.divCentre && divScale == o.divScale &&
-		       laneMode == o.laneMode && atnNode == o.atnNode;
+	/** Every field, listed once for the two ways two windows are held
+	against each other: as the same window (`==`, a float by its value and a
+	scale by what it means) and as the same bytes (`identical`, a float by
+	its bits, so nought and minus nought part, and a scale whole). A field
+	added is added here and so to both. */
+	template <typename Same>
+	static bool each(const Mapping& a, const Mapping& b, Same same) {
+		return same(a.reach, b.reach) && same(a.preShift, b.preShift) && same(a.postShift, b.postShift) &&
+		       same(a.landSemis, b.landSemis) && same(a.scale, b.scale) && same(a.spanned, b.spanned) &&
+		       same(a.quantNode, b.quantNode) && same(a.quantColor, b.quantColor) && same(a.rollGain, b.rollGain) &&
+		       same(a.rollCents, b.rollCents) && same(a.divOrigin, b.divOrigin) && same(a.divGain, b.divGain) &&
+		       same(a.divCentre, b.divCentre) && same(a.divScale, b.divScale) && same(a.laneMode, b.laneMode) &&
+		       same(a.atnNode, b.atnNode);
 	}
+	struct ByValue {
+		template <typename T>
+		bool operator()(const T& a, const T& b) const { return a == b; }
+	};
+	struct ByBits {
+		template <typename T>
+		bool operator()(const T& a, const T& b) const { return a == b; }
+		bool operator()(const float& a, const float& b) const { return std::memcmp(&a, &b, sizeof(float)) == 0; }
+		bool operator()(const Scale& a, const Scale& b) const { return a.identical(b); }
+	};
+	bool operator==(const Mapping& o) const { return each(*this, o, ByValue()); }
 	bool operator!=(const Mapping& o) const { return !(*this == o); }
+	bool identical(const Mapping& o) const { return each(*this, o, ByBits()); }
 	/** The window runs from `bottom`, where the travel starts, to `top`, and
 	`top` is below `bottom` when a Atn has turned it over. It is symmetric
 	about nought until an offset shifts it, so a sequence sits around C4 and a
@@ -180,6 +198,88 @@ struct Mapping {
 	static float placed(float v, float lo, float hi) { return lo + (clamp(v, -1.f, 1.f) + 1.f) * 0.5f * (hi - lo); }
 };
 
+/** A window where a node keeps it to hand on: the mapping, and a seal that
+says without reading it whether it is the one handed last. A seal is a number
+no two different windows ever carry: it is given to a window's bytes once
+(`moved`), travels only with a copy of those very bytes (`take`, an
+assignment), and is dropped by the one way there is to write the mapping
+(`edit`, `set`), so two windows under one seal are the same bytes and nothing
+a member does can make that false. Under it the gate's question is one
+integer, where it compared two mappings field by field at every wake of every
+node, and a window taken again from where it was taken is not copied. A
+window with no seal is only slower, compared and copied whole as it always
+was. The seals come from one counter for the whole plugin, an atomic, since
+two rigs' hosts may seal at once. */
+class Sealed {
+	Mapping m;
+	// Nought for none. Written through a const window by `moved`: a seal put
+	// on is no change to the window.
+	mutable uint64_t seal = 0;
+	static uint64_t nextSeal() {
+		static std::atomic<uint64_t> counter{1};
+		return counter.fetch_add(1, std::memory_order_relaxed);
+	}
+
+public:
+	const Mapping& operator*() const { return m; }
+	const Mapping* operator->() const { return &m; }
+	/** The mapping to write: the seal goes, whatever is then written. */
+	Mapping& edit() {
+		seal = 0;
+		return m;
+	}
+	void set(const Mapping& o) { edit() = o; }
+	/** `o` taken whole, its seal with it; under one seal already, nothing
+	to copy. */
+	void take(const Sealed& o) {
+		if (seal != 0 && seal == o.seal)
+			return;
+		m = o.m;
+		seal = o.seal;
+	}
+	/** The window as it is made, nothing shaped, sealed from the start and
+	so never written by any thread: what a node with no window hands on. */
+	static const Sealed& none() {
+		static const Sealed plain = [] {
+			Sealed w;
+			w.seal = nextSeal();
+			return w;
+		}();
+		return plain;
+	}
+	/** Whether `now` is the bytes this is: under one seal, yes, and nothing
+	is read. Else the bytes are held against each other, and the same they
+	are under one seal from here, `now` wearing mine or I its own, so the
+	next asking is the one integer. What a member that makes something of a
+	window asks before making it again (a CV its slots), and what the gate
+	opens with. */
+	bool same(const Sealed& now) {
+		if (now.seal != 0 && now.seal == seal)
+			return true;
+		if (!now.m.identical(m))
+			return false;
+		if (now.seal == 0)
+			now.seal = seal != 0 ? seal : (seal = nextSeal());
+		else
+			seal = now.seal;
+		return true;
+	}
+	/** The gate: whether `now` differs from `gone`, what was handed on last
+	time, which it then becomes. The same bytes are no change (`same`); the
+	same window in other bytes (`==`), no change still, and `gone` takes
+	the new bytes under a new seal, so a seal never stands for two. */
+	static bool moved(Sealed& gone, const Sealed& now) {
+		if (gone.same(now))
+			return false;
+		const bool differs = now.m != gone.m;
+		if (now.seal == 0)
+			now.seal = nextSeal();
+		gone.m = now.m;
+		gone.seal = now.seal;
+		return differs;
+	}
+};
+
 /** The travel a voltage means to a CV with nothing to its left: minus
 CV_VOLTS to CV_VOLTS is the whole of it, and past either end it is held there.
 A CV with a window made for it places a voltage with `Slots::travelOf`. */
@@ -218,8 +318,8 @@ struct Slots {
 			return 0;
 		if (m.scale.spread)
 			return spreadNotes(m.scale, out);
-		const int lo = (int)std::round(std::min(m.bottom(), m.top()) * 12.f);
-		const int hi = (int)std::round(std::max(m.bottom(), m.top()) * 12.f);
+		const int lo = wholeOf(std::min(m.bottom(), m.top()) * 12.f);
+		const int hi = wholeOf(std::max(m.bottom(), m.top()) * 12.f);
 		int n = 0;
 		for (int k = lo; k <= hi && n < MAX_NOTES; k++)
 			if (m.scale.has(k))
@@ -292,7 +392,7 @@ struct Slots {
 	Tuned tunedAt(const Mapping& m, float x, float volts) const {
 		if (m.scale.any() && !m.scale.spread) {
 			const int k = noteOf(m, x);
-			const long c = std::lround((double)volts * 1200.0) - (long)k * 100;
+			const long c = wholeOf((double)volts * 1200.0) - (long)k * 100;
 			if (c >= -99 && c <= 99)
 				return {k, (int)c};
 		}
@@ -344,7 +444,7 @@ struct Slots {
 		// window's note moved onto it, taken back along the pattern.
 		float target = unshift(m, 0.f);
 		if (m.scale.degrees != 0 && m.scale.any() && !m.scale.spread)
-			target = (float)degreeMoved(m.scale, (int)std::round(target * 12.f), true) / 12.f;
+			target = (float)degreeMoved(m.scale, wholeOf(target * 12.f), true) / 12.f;
 		float f = 0.5f;
 		if (span != 0.f)
 			f = (target - m.bottom()) / span;
@@ -671,10 +771,10 @@ struct Taken {
 	bool light = false;
 };
 
-/** What a playhead standing on a member sounds: a voltage, a trigger mask
-over the member's rings, or a chord; the signal it makes of the reader's
-cable and the window it hands on. */
-struct Sound {
+/** The numbers of a Sound, each as it is made. `Sound::fresh` puts them back
+by assigning one of these whole, so a number added here is fresh at every
+step with nothing for anybody to remember. */
+struct SoundSaid {
 	enum Type { VOLTS, TRIG, CHORD };
 	// VOLTS under a volt divider: the band sounded, the integer the divider
 	// snapped by (`Divider::band`), which a reader lights rather than `note`;
@@ -684,7 +784,6 @@ struct Sound {
 	Type type = VOLTS;
 	float semis = 0.f; // VOLTS: the jack, in semitones
 	int mask = 0;      // TRIG: the rings lit under the playhead
-	Scale chord;       // CHORD: the keyboard to lay out
 	int note = 0;      // VOLTS: the note sounded, in semitones from C4, an integer at its source (`MemberFace::litSemis`)
 	int value = -1;    // what the member sounded, for its screen: a Qnt's key, a Trg's ring
 	// VOLTS: the voices past the first, in volts and a divider's line as the
@@ -692,8 +791,55 @@ struct Sound {
 	// chord on a cable (`semis` is the first); one voice else.
 	int voices = 1;
 	float voice[PORT_MAX_CHANNELS] = {};
-	Signal signal;
-	Mapping window;
+};
+
+/** What a playhead standing on a member sounds: a voltage, a trigger mask
+over the member's rings, or a chord, and the window it hands on.
+
+A reader keeps its Sounds and sounds into them again at every step, where it
+made a new one each time, most of it a scale and a window nobody had written.
+What a member is owed stays what it was, a Sound as it is made, and no member
+owes anything for it: `fresh` puts the numbers back whole, and the two wide
+parts, the chord and the window, cannot be read as they were left. Each is
+kept behind a mark that `fresh` takes off and only writing it puts on, and
+unmarked it reads as it is made, whatever the last step left in its place.
+So a member writes only what it sounds, as before, and what it does not write
+is fresh by construction, never by its own care. */
+struct Sound : SoundSaid {
+private:
+	Scale chordKept;
+	Sealed windowKept;
+	bool chordSaid = false, windowSaid = false;
+
+public:
+	/** As it is made, before each step sounded into it. */
+	void fresh() {
+		SoundSaid::operator=(SoundSaid());
+		chordSaid = windowSaid = false;
+	}
+	/** CHORD: the keyboard to lay out. */
+	const Scale& chord() const {
+		static const Scale none;
+		return chordSaid ? chordKept : none;
+	}
+	void setChord(const Scale& s) {
+		chordKept = s;
+		chordSaid = true;
+	}
+	/** The window handed on: none until a member says one. Taken by its seal
+	(`Sealed::take`), so the window a member hands on at every step, its own
+	unshaped, is copied once. */
+	const Sealed& window() const { return windowSaid ? windowKept : Sealed::none(); }
+	void takeWindow(const Sealed& w) {
+		windowKept.take(w);
+		windowSaid = true;
+	}
+	/** The window to shape: as it is made unless one was taken. */
+	Mapping& editWindow() {
+		if (!windowSaid)
+			takeWindow(Sealed::none());
+		return windowKept.edit();
+	}
 	/** The volts the jack gives: under a divider the line itself, `volts`,
 	while `semis` is still twelve times it, since twelve times a line over
 	twelve need not give it back bit for bit; `semis` over twelve once a
@@ -713,8 +859,9 @@ struct MemberFace {
 	virtual int countParam() const { return -1; }
 	/** Standing on sub-step `sub` with `in` arriving: what is sounded. */
 	virtual void sound(int sub, const Signal& in, int color, Sound& out) = 0;
-	// `out` arrives fresh, a Sound as it is made, and a member writes only
-	// what it sounds.
+	// `out` arrives fresh, a Sound as it is made (`Sound::fresh`, the
+	// reader's to call and nothing a member can undo), and a member writes
+	// only what it sounds.
 	/** Where in the step the reader in `lane` stands, nought as it lands
 	and one as it leaves, said just before `sound`: a member that is a
 	stretch rather than a point, a CRV, sounds the place it is told, and

@@ -102,14 +102,14 @@ struct LawQuantity : Base {
 volts passed as they come, and say so; under the harmonic law they are
 harmonics, and say that. */
 struct DivQuantity : LawQuantity<ParamQuantity> {
-	bool none() { return (int)std::round(getValue()) == 0; }
+	bool none() { return wholeOf(getValue()) == 0; }
 	std::string getDisplayValueString() override {
 		return none() ? std::string(rig::UNQUANTIZED_NAME) : ParamQuantity::getDisplayValueString();
 	}
 	std::string getUnit() override {
 		if (none())
 			return std::string();
-		const bool one = (int)std::round(getValue()) == 1;
+		const bool one = wholeOf(getValue()) == 1;
 		return harmonic() ? (one ? " harmonic" : " harmonics") : one ? " part" : ParamQuantity::getUnit();
 	}
 };
@@ -122,7 +122,7 @@ struct BendQuantity : LawQuantity<HintQuantity> {
 	std::string getDisplayValueString() override {
 		if (harmonic())
 			return "harmonic series";
-		const int b = (int)std::round(getValue());
+		const int b = wholeOf(getValue());
 		return b == 0 ? "equal volts" : string::f("%d%% toward %s", b < 0 ? -b : b, b > 0 ? "log" : "exp");
 	}
 	std::string getUnit() override { return std::string(); }
@@ -320,7 +320,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	int detuneOf(int key) {
 		if (key < 0 || key >= 12 * MAX_OCTAVES)
 			return 0;
-		return clamp((int)std::round(params[DETUNE_PARAM + key].getValue()), -MAX_CENTS, MAX_CENTS);
+		return clamp(wholeOf(params[DETUNE_PARAM + key].getValue()), -MAX_CENTS, MAX_CENTS);
 	}
 	/** Whether a keyboard's transpose is in semitones, moving the keys, rather
 	than in degrees of the pattern, its default: the ring after the head's count turned off. */
@@ -357,7 +357,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 			Qnt* q = dynamic_cast<Qnt*>(module);
 			// A roll has no pattern to count along: always semitones.
 			const bool semis = q && (q->shownNow().roll || q->chromaticNow());
-			const int t = (int)std::round(getValue());
+			const int t = wholeOf(getValue());
 			return std::string(semis ? " semitone" : " degree") + (std::abs(t) == 1 ? "" : "s");
 		}
 	};
@@ -453,7 +453,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 			return true;
 		const int mode = modeNow(), octaves = octavesOf(mode);
 		const bool roll = mode < 0;
-		const int shift = roll ? rollShiftIn((int)std::round(params[ROLL_PARAM].getValue()), octaves) : 0;
+		const int shift = roll ? rollShiftIn(wholeOf(params[ROLL_PARAM].getValue()), octaves) : 0;
 		if (octaves != watchedOct || roll != watchedRoll || shift != watchedShift)
 			watchSet(octaves, roll, shift);
 		return watchedKeys[p];
@@ -504,11 +504,11 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	}
 	/** The mode in force, as `modeWith` takes it, an integer from the one
 	place it is read. */
-	int modeNow() { return clamp((int)std::round(params[MODE_PARAM].getValue()), -1, 1); }
+	int modeNow() { return clamp(wholeOf(params[MODE_PARAM].getValue()), -1, 1); }
 	/** The octaves a mode spans, its own param's: one to ten for the
 	keyboard and the roll, nought for the divider, which has none. */
 	int octavesOf(int mode) {
-		return mode == 0 ? 0 : clamp((int)std::round(params[mode > 0 ? KEYS_OCT_PARAM : ROLL_OCT_PARAM].getValue()), 1, MAX_OCTAVES);
+		return mode == 0 ? 0 : clamp(wholeOf(params[mode > 0 ? KEYS_OCT_PARAM : ROLL_OCT_PARAM].getValue()), 1, MAX_OCTAVES);
 	}
 	template <typename F> void openKeyboardWith(F set) {
 		set(EXPANDED_PARAM, 1.f);
@@ -609,7 +609,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	int lawTipped = -1;
 	void retipLaw() {
 		const int harmonics = params[DIVLAW_PARAM].getValue() >= 0.5f ? 1 : 0;
-		const int none = (int)std::round(params[DIV_PARAM].getValue()) == 0 ? 1 : 0;
+		const int none = wholeOf(params[DIV_PARAM].getValue()) == 0 ? 1 : 0;
 		if (harmonics * 2 + none == lawTipped)
 			return;
 		lawTipped = harmonics * 2 + none;
@@ -737,7 +737,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 
 	/** The scale in force: the keys as set, a keyboard's moved by its transpose,
 	a roll's where it stands on the piano. */
-	void prepare(const Mapping& win, const ProcessArgs& args) override {
+	void prepare(const Sealed& win, const ProcessArgs& args) override {
 		// All of it is my settings' and nothing else's, so a wake that only a
 		// jack caused keeps the scale it built rather than building it every
 		// sample under a moving cable.
@@ -753,7 +753,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		// A roll's window is where it stands on the piano, its own to set;
 		// its notes are the whole of what it quantizes to, the travel shared
 		// among them (`Slots::windowNotes`).
-		const int shift = roll ? rollShiftIn((int)std::round(params[ROLL_PARAM].getValue()), octaves) : 0;
+		const int shift = roll ? rollShiftIn(wholeOf(params[ROLL_PARAM].getValue()), octaves) : 0;
 		// The keys in play moved: the table is built again with them.
 		if (octaves != watchedOct || roll != watchedRoll || shift != watchedShift)
 			bumpWiring();
@@ -764,7 +764,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		// them, its default.
 		// A roll's transpose is in semitones whatever the menu says: its
 		// notes are each their own, and a degree of them is no step at all.
-		const int t = clamp((int)std::round(params[TRANSPOSE_PARAM].getValue()), -TRANSPOSE_MAX, TRANSPOSE_MAX);
+		const int t = clamp(wholeOf(params[TRANSPOSE_PARAM].getValue()), -TRANSPOSE_MAX, TRANSPOSE_MAX);
 		const bool chromatic = roll || chromaticNow();
 		const int tr = chromatic ? t : 0;
 		int notes[12 * MAX_OCTAVES + 1];
@@ -811,9 +811,9 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		if (total == 0 || mode == 0)
 			now = Scale();
 		if (mode == 0) {
-			now.divs = (int16_t)clamp((int)std::round(params[DIV_PARAM].getValue()), 0, MAX_DIVS);
+			now.divs = (int16_t)clamp(wholeOf(params[DIV_PARAM].getValue()), 0, MAX_DIVS);
 			now.harmonic = params[DIVLAW_PARAM].getValue() >= 0.5f;
-			now.bend = (int8_t) clamp((int)std::round(params[DIVBEND_PARAM].getValue()), -rig::DIV_BEND_MAX, rig::DIV_BEND_MAX);
+			now.bend = (int8_t) clamp(wholeOf(params[DIVBEND_PARAM].getValue()), -rig::DIV_BEND_MAX, rig::DIV_BEND_MAX);
 		}
 		rollShiftWork = shift;
 		transposeWork = tr;
@@ -891,7 +891,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		return scale.keyOf(semis - transposeWork);
 	}
 	bool windowIn(Mapping& win) override {
-		win = winIn;
+		win = *winIn;
 		return true;
 	}
 
@@ -912,7 +912,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	roll, 3 a divider, 0 unquantized. */
 	int laneModeNow() {
 		const int mode = modeNow();
-		return mode > 0 ? 1 : mode < 0 ? 2 : (int)std::round(params[DIV_PARAM].getValue()) > 0 ? 3 : 0;
+		return mode > 0 ? 1 : mode < 0 ? 2 : wholeOf(params[DIV_PARAM].getValue()) > 0 ? 3 : 0;
 	}
 	void parsed(const tree::Left& left, int pass) override {
 		Cartridge::parsed(left, pass);
@@ -1170,14 +1170,14 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	is snapped as my jack snaps it, never the scale sounded over it. */
 	void sound(int sub, const Signal& sig, int col, Sound& o) override {
 		bandActed = NO_BAND;
-		Cartridge::sound(sub, sig, col, o);
-		if (o.signal.present && scale.divides() && bandActed != NO_BAND) {
+		const bool signal = soundSignal(sub, sig, col, o);
+		if (signal && scale.divides() && bandActed != NO_BAND) {
 			o.band = bandActed;
 			o.volts = Divider::of(scale).line(bandActed);
 		}
-		if (!o.signal.present) {
+		if (!signal) {
 			o.type = Sound::CHORD;
-			o.chord = scale;
+			o.setChord(scale);
 		}
 	}
 	int bundle(float* v) override { return 0; } // a chord: no channel of a bundle, and a Poly never asks (its row `gives` none, Manifest.hpp)
@@ -1525,7 +1525,7 @@ struct QntHead : ScreenParam {
 		int lo, hi;
 		m->transposeSpan(lo, hi);
 		engine::ParamQuantity* pq = m->paramQuantities[Qnt::TRANSPOSE_PARAM];
-		const int now = clamp((int)std::round(pq->getValue()), lo, hi);
+		const int now = clamp(wholeOf(pq->getValue()), lo, hi);
 		int k = steps;
 		while (k != 0 && (now + k * per > hi || now + k * per < lo))
 			k -= k > 0 ? 1 : -1;
@@ -1603,7 +1603,7 @@ struct QntHead : ScreenParam {
 		engine::ParamQuantity* pq = getParamQuantity();
 		const NVGcolor col = q ? q->faceColor() : SCHEME_YELLOW;
 		const bool divider = paramId == Qnt::DIV_PARAM;
-		int n = pq ? (int)std::round(pq->getValue()) : 0;
+		int n = pq ? wholeOf(pq->getValue()) : 0;
 		// By degrees, the count sounding, which the engine holds at the
 		// pattern's reach (`degreeReach`); a stroke never passes it.
 		const bool keys = !divider && keyboard();
@@ -1833,7 +1833,7 @@ struct BendFace : VerticalDragParam {
 	/** Where the face stands on the line: the bend, or the harmonics. */
 	int place() {
 		engine::ParamQuantity* pq = getParamQuantity();
-		return harmonic() ? HARMONICS : pq ? (int)std::round(pq->getValue()) : 0;
+		return harmonic() ? HARMONICS : pq ? wholeOf(pq->getValue()) : 0;
 	}
 	/** The face set to `to` on the line, the law and the bend. */
 	void setPlace(int to) {

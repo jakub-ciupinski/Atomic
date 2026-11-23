@@ -139,7 +139,7 @@ struct Clock : Member, Probe, RateMode {
 		if (c == countedWork)
 			return;
 		countedWork = c;
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 	void publishReads() override {
 		readNow.store(countedWork, std::memory_order_relaxed);
@@ -220,6 +220,9 @@ struct Clock : Member, Probe, RateMode {
 	// fast they are. Made at once while stopped.
 	int rateLive = 0; // in millionths (`RATE_ONE`)
 	bool rateStarted = false;
+	/** Its ratio in lowest terms, ticks a beat, kept until it moves. */
+	mutable RatioKept liveRatio;
+	void ratioLive(int& n, int& d) const { liveRatio.of(rateLive, n, d); }
 
 	// ---- Its own tempo, an anchored oscillator. Time is counted in beats:
 	// at `anchorTime` (a frame, fractional after a change of tempo) it stood
@@ -328,19 +331,25 @@ struct Clock : Member, Probe, RateMode {
 	pulse, `n` every `d`, in lowest terms, so the journeys between pulses
 	are the writer's own at any setting. */
 	void ratioIn(int& n, int& d) const {
-		ratioOfRate(rateLive, n, d);
-		// A denominator near /255 times 24 passes an int; in lowest terms it
-		// is back under three times the magnitude (`ratioOfRate`).
-		int64_t a = n, b = (int64_t)d * ppqn;
-		const int64_t dd = b;
-		while (b) {
-			const int64_t t = a % b;
-			a = b;
-			b = t;
-		}
-		n = (int)(n / a);
-		d = (int)(dd / a);
+		const Ratio& r = inRatio.of({rateLive, ppqn}, [](const std::pair<int, int>& ratePulses) {
+			Ratio r = ratioOfRate(ratePulses.first);
+			// A denominator near /255 times 24 passes an int; in lowest terms it
+			// is back under three times the magnitude (`ratioOfRate`).
+			int64_t a = r.n, b = (int64_t)r.d * ratePulses.second;
+			const int64_t dd = b;
+			while (b) {
+				const int64_t t = a % b;
+				a = b;
+				b = t;
+			}
+			r.n = (int)(r.n / a);
+			r.d = (int)(dd / a);
+			return r;
+		});
+		n = r.n;
+		d = r.d;
 	}
+	mutable Again<std::pair<int, int>, Ratio> inRatio; // kept as `liveRatio` is, by the rate and the pulses a beat
 	/** Where a pulse in stands in its beat, nought on the beat: a start is
 	nought, and a change of division waits for a beat, as on the Clock's own
 	tempo, never landing on a sixteenth. */
@@ -387,7 +396,7 @@ struct Clock : Member, Probe, RateMode {
 	}
 	void setSceneSetting(int k, float v) override {
 		if (k == SCENE_PPQN) {
-			const int n = (int)std::lround(v);
+			const int n = wholeOf(v);
 			ppqnSet.store(n == 4 || n == 24 ? n : 1, std::memory_order_relaxed);
 		}
 		else if (k == SCENE_BLEP)
@@ -433,7 +442,7 @@ struct Clock : Member, Probe, RateMode {
 	int rateNow(const RateIn& in) {
 		const int h = in.rate();
 		if (follows() && inputs[BPM_INPUT].isConnected())
-			return rateOfStep(clamp(pow2Rung(wholeStepOf(h), (int)std::round(clamp(inputs[BPM_INPUT].getVoltage(), -10.f, 10.f))),
+			return rateOfStep(clamp(pow2Rung(wholeStepOf(h), wholeOf(clamp(inputs[BPM_INPUT].getVoltage(), -10.f, 10.f))),
 			                        RATE_MIN, RATE_MAX));
 		return h;
 	}
@@ -493,11 +502,21 @@ struct Clock : Member, Probe, RateMode {
 	/** What the BPM CV jack multiplies the setting by: two to the volts, one
 	volt doubling and minus one halving, read from ten either way; one
 	unpatched, and one following a cable, where the jack is the division. */
-	double tempoGain() {
+	double tempoGain(Again<double, double>* kept = nullptr) {
 		if (!inputs[BPM_INPUT].isConnected() || follows())
 			return 1.0;
-		return std::exp2((double)clamp(inputs[BPM_INPUT].getVoltage(), -10.f, 10.f));
+		return pow2((double)clamp(inputs[BPM_INPUT].getVoltage(), -10.f, 10.f), kept);
 	}
+	/** Two to the `octaves`: the library's, which on Windows is the x87's
+	and the dearest thing in a sample of a Clock in hertz. The engine asks
+	it every sample of a setting and a jack that mostly stand, so it hands
+	in a keeper (`Again`) and the library is asked when the octaves move;
+	a hover, on its own thread, hands in none. */
+	static double pow2(double octaves, Again<double, double>* kept) {
+		return kept ? kept->of(octaves, [](double o) { return std::exp2(o); }) : std::exp2(octaves);
+	}
+	Again<double, double> gainPow, pitchPow; // the engine's keepers, the jack's gain and the setting's pitch
+	RateIn::Kept rateKept;                   // and the rate's reading, its param and its jack (`rateInOf`)
 	/** A setting times a gain, kept within what the readout holds: the
 	tempo in force, the engine's and the readout's hand's one arithmetic. */
 	static double tempoKept(double t) { return std::min(std::max(t, (double)TEMPO_MIN), (double)TEMPO_MAX); }
@@ -526,7 +545,7 @@ struct Clock : Member, Probe, RateMode {
 	static double freqKept(double f) { return std::min(std::max(f, FREQ_MIN), FREQ_MAX); }
 	/** The pitch: the setting, bent by the V/OCT jack a volt a doubling
 	(`tempoGain`, the BPM jack's own arithmetic), what the readout names. */
-	double pitch() { return freqKept(FREQ_C4 * std::exp2(freqGlide.playedFine(kept(FREQ_PARAM))) * tempoGain()); }
+	double pitch() { return freqKept(FREQ_C4 * pow2(freqGlide.playedFine(kept(FREQ_PARAM)), &pitchPow) * tempoGain(&gainPow)); }
 	/** The setting the engine plays, in octaves, gliding to the param's
 	(a stroke would otherwise be heard as steps) along every dragged setting's line (`rig::Glide`). A jump, a setting at
 	least `JUMP_OCT` from the last one (a shift step's octave, a double
@@ -674,7 +693,7 @@ struct Clock : Member, Probe, RateMode {
 	float setting() { return kept(TEMPO_PARAM); }
 	/** The tempo in force: the readout's setting, bent by the BPM CV jack a
 	volt a doubling (`tempoGain`). */
-	double tempo() { return bent(setting(), tempoGain()); }
+	double tempo() { return bent(setting(), tempoGain(&gainPow)); }
 	Clock() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configSwitch<WithHint<SwitchQuantity>>(RUN_PARAM, 0.f, 1.f, 1.f, "Run", {"Stopped", "Running"});
@@ -881,10 +900,11 @@ struct Clock : Member, Probe, RateMode {
 	/** The time tick `j` falls at, a frame and a fraction. */
 	double tickAt(int64_t j) const {
 		int n, d;
-		ratioOfRate(rateLive, n, d);
-		// In 128 bits: a millionth's denominator is near a million, and ticks
-		// at 20 kHz times x255 would pass 64 bits in about three weeks.
-		const double at = (double)yBase + yFrac - anchorBeats + (double)((__int128)(j - tBase) * d) / (double)n;
+		ratioLive(n, d);
+		// The product whole, in 128 bits where it must be: a millionth's
+		// denominator is near a million, and ticks at 20 kHz times x255 would
+		// pass 64 bits in about three weeks (`productOf`).
+		const double at = (double)yBase + yFrac - anchorBeats + productOf(j - tBase, d) / (double)n;
 		return anchorTime + at * beatFrames;
 	}
 	/** Starts the grid afresh with tick `first` on a new whole beat, at the
@@ -906,7 +926,7 @@ struct Clock : Member, Probe, RateMode {
 	integers, so whether the beat stands on a tick is decided exactly. */
 	void rebaseOnBeat(int64_t b, int want) {
 		int n, d;
-		ratioOfRate(rateLive, n, d);
+		ratioLive(n, d);
 		if (yFrac != 0.0) // off the grid since a free rate's FM: the tick under way ends on the beat
 			tBase = tBase + (int64_t)std::ceil(((double)(b - yBase) - yFrac) * n / d);
 		else {
@@ -926,12 +946,12 @@ struct Clock : Member, Probe, RateMode {
 	(`yFrac`), until a whole rate's change on a beat or a regrid puts it back. */
 	void fmRebase(int64_t f, int want) {
 		int n, d;
-		ratioOfRate(rateLive, n, d);
+		ratioLive(n, d);
 		const double beat = beatsAt(f);
 		const double pos = (double)tBase + (beat - (double)yBase - yFrac) * n / d;
 		const double frac = std::min(std::max(pos - (double)(next - 1), 0.0), 1.0);
 		rateLive = want;
-		ratioOfRate(rateLive, n, d);
+		ratioLive(n, d);
 		const double y = beat - frac * d / n;
 		yBase = (int64_t)std::floor(y);
 		yFrac = y - (double)yBase;
@@ -954,11 +974,11 @@ struct Clock : Member, Probe, RateMode {
 					rateLive = want;
 				else {
 					int n, d;
-					ratioOfRate(rateLive, n, d);
+					ratioLive(n, d);
 					const double t = (double)tBase + (anchorBeats - (double)yBase - yFrac) * n / d;
 					const double frac = std::min(std::max(t - (double)(next - 1), 0.0), 1.0);
 					rateLive = want;
-					ratioOfRate(rateLive, n, d);
+					ratioLive(n, d);
 					const int64_t K = nextBeat;
 					yBase = K;
 					yFrac = 0.0;
@@ -1356,7 +1376,7 @@ struct Clock : Member, Probe, RateMode {
 		const bool following = follows();
 		// The RATE jack read once this sample: the rate it leaves, and whether
 		// it is free, which on its own tempo takes a change at once.
-		const RateIn rateHere = rateIn();
+		const RateIn rateHere = rateInOf(this, rateParam(), RATE_INPUT, &rateKept);
 		const int want = rateNow(rateHere);
 		if (!rateStarted) {
 			rateLive = want;
@@ -1464,7 +1484,7 @@ struct Clock : Member, Probe, RateMode {
 			if (following)
 				ratioIn(tn, td);
 			else
-				ratioOfRate(rateLive, tn, td);
+				ratioLive(tn, td);
 			const double beatLen = following ? beatPeriod : ownBeat;
 			// Following, a journey paying back owed ticks makes them closer.
 			tickPeriod = beatLen > 0.0 ? beatLen * td / (tn + (following ? owed : 0) * td) : 0.0;
@@ -1481,11 +1501,11 @@ struct Clock : Member, Probe, RateMode {
 		// alone: nothing in time reads it.
 		if ((f % CONTROL_PERIOD) == 0) {
 			const bool silent = following && (beatPeriod <= 0.0 || beatIn.lastFrame < 0);
-			bpmNow.store(silent ? -1 : clamp((int)std::round(bpm), 0, TEMPO_MAX), std::memory_order_relaxed);
+			bpmNow.store(silent ? -1 : clamp(wholeOf(bpm), 0, TEMPO_MAX), std::memory_order_relaxed);
 			// In hertz the same, the pitch the cable's cycle, unrounded.
 			const double heard = hzMode ? args.sampleRate / beatPeriod : bpm;
 			heardNow.store(following && !silent ? heard : -1.0, std::memory_order_relaxed);
-			bpmGain.store(tempoGain(), std::memory_order_relaxed);
+			bpmGain.store(tempoGain(&gainPow), std::memory_order_relaxed);
 			hzNow.store(!following ? pitch() : silent ? -1.0 : heard, std::memory_order_relaxed);
 			ratePatched.store(inputs[RATE_INPUT].isConnected(), std::memory_order_relaxed);
 			rateCv.store(clamp(inputs[RATE_INPUT].getVoltage() / 10.f, -1.f, 1.f), std::memory_order_relaxed);
@@ -1579,7 +1599,7 @@ struct Clock : Member, Probe, RateMode {
 			cnt.turnFrac = turnFrac;
 			cnt.phased = hzWas && phOn;
 			if (hzWas)
-				ratioOfRate(rateLive, cnt.tickN, cnt.tickD);
+				ratioLive(cnt.tickN, cnt.tickD);
 			else
 				cnt.tickN = cnt.tickD = 1; // the turn is hertz's alone
 			cntRate = rateLive;
@@ -1895,7 +1915,7 @@ struct TempoParam : ScreenParam {
 			return string::f("%.2f", v);
 		if (v < 99.95)
 			return string::f("%.1f", v);
-		return string::f("%d", (int)std::round(v));
+		return string::f("%d", wholeOf(v));
 	}
 	void strokeMove(const DragMoveEvent& e) override {
 		if (e.button != GLFW_MOUSE_BUTTON_LEFT)
@@ -1918,7 +1938,7 @@ struct TempoParam : ScreenParam {
 		// From the tempo shown as it stands, one rounding of the tempo in
 		// force, to the next whole BPM along, and the setting that makes it.
 		const double g = gain();
-		const int now = (int)std::round(Clock::bent(pq->getValue(), g));
+		const int now = wholeOf(Clock::bent(pq->getValue(), g));
 		const int to = tens ? gridStep(now, 10, -took, Clock::TEMPO_MIN, Clock::TEMPO_MAX)
 		                    : clamp(now - took, Clock::TEMPO_MIN, Clock::TEMPO_MAX);
 		const float set = clamp((float)(to / g), pq->getMinValue(), pq->getMaxValue());

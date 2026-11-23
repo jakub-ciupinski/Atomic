@@ -319,7 +319,7 @@ patched, an arrow's and the scene screen's, the state as the value, as
 const char* const RIG_JACK_CHOOSES = ": set by the SCENE jack";
 const char* const RIG_TRIGGERS_UNHEARD = "While the SCENE jack chooses the scene, a trigger here does nothing.";
 /** A recall by the hand or a trigger restarts every SEQ to the RIG's right
-(`resetMolecule`) and the SCENE jack's morph never does: said only where
+(`RigCore::ask`) and the SCENE jack's morph never does: said only where
 there is a SEQ there (`rigSeqs`), each lesson above ending in `rigEnd`. */
 const char* const RIG_SCENE_IN_LESSON =
     "1 V is the first scene, 2 V the second; between two it morphs, a switch or a stepped setting changing halfway.";

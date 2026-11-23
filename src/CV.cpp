@@ -86,8 +86,10 @@ struct CV : Cartridge, Probe {
 
 	// The mapping and its slots, resolved only when the mapping changes, and
 	// published under a generation counter: odd while being written, so the
-	// screen copies and retries until it has a whole one.
-	Mapping map;
+	// screen copies and retries until it has a whole one. Kept under the
+	// seal it arrived with, so whether it has changed is one integer at
+	// every wake but the one it does (`prepare`).
+	Sealed map;
 	Slots slots;
 	std::atomic<uint32_t> gen{0};
 	float volts = 0.f;
@@ -105,7 +107,7 @@ struct CV : Cartridge, Probe {
 		retipIn(this, IN_INPUT, {"Value", CV_IN_REPLACES "."});
 		configOutput(CV_OUTPUT, "Value");
 		retipOut(this, CV_OUTPUT, {"Value"});
-		slots.resolve(map);
+		slots.resolve(*map);
 	}
 
 	/** What the fader means is decided to the left, and what the IN jack
@@ -193,7 +195,7 @@ struct CV : Cartridge, Probe {
 				continue;
 			// Into copies of my own, handed over only once whole: a try the
 			// audio thread tore leaves the caller's as they were.
-			Mapping m1 = map;
+			Mapping m1 = *map;
 			Slots sl1 = slots;
 			std::atomic_thread_fence(std::memory_order_acquire);
 			if (relaxed(gen) == g0) {
@@ -206,8 +208,8 @@ struct CV : Cartridge, Probe {
 	}
 
 	/** The travel a voltage means here, placed in this CV's window. */
-	float travelOf(float v) { return slots.travelOf(map, v); }
-	float unshifted(float outVolts) { return Slots::unshift(map, outVolts); }
+	float travelOf(float v) { return slots.travelOf(*map, v); }
+	float unshifted(float outVolts) { return Slots::unshift(*map, outVolts); }
 	void writeTravel(float travel) {
 		if (!cv.live()) { // the jack holds the fader while a cable is in
 			params[VALUE_PARAM].setValue(clamp(travel, 0.f, 1.f));
@@ -245,7 +247,7 @@ struct CV : Cartridge, Probe {
 			valueGlide.jump(travel);
 			return travel;
 		}
-		if (map.scale.any() || map.scale.divides())
+		if (map->scale.any() || map->scale.divides())
 			return travel;
 		return valueGlide.played(travel);
 	}
@@ -256,7 +258,7 @@ struct CV : Cartridge, Probe {
 	in the same bond takes the transposition twice. */
 	float value() {
 		if (cv.live())
-			return slots.travelOf(map, unshifted(cv.get()));
+			return slots.travelOf(*map, unshifted(cv.get()));
 		if (kept.owed())
 			return kept.letGo;
 		return params[VALUE_PARAM].getValue();
@@ -267,34 +269,32 @@ struct CV : Cartridge, Probe {
 
 
 	// The window arriving is what the fader is read in.
-	void prepare(const Mapping& win, const ProcessArgs& args) override {
-		if (win != map) {
-			gen.fetch_add(1, std::memory_order_release); // odd: writing
-			std::atomic_thread_fence(std::memory_order_release);
-			map = win;
-			slots.resolve(map);
-			gen.fetch_add(1, std::memory_order_release); // even: whole
+	void prepare(const Sealed& win, const ProcessArgs& args) override {
+		if (!map.same(win) && *win != *map) {
+			Writing<uint32_t> whole(gen);
+			map.take(win);
+			slots.resolve(*map);
 		}
 		keepWhatTheCableLeft(kept, VALUE_PARAM, cv.live());
 		const float travel = value();
 		if (cv.live())
 			kept.liveTravel = travel;
 		const float played = playedTravel(travel);
-		volts = slots.map(map, played);
+		volts = slots.map(*map, played);
 		tellUse(at(sWindow), this, true, useTold); // my window slot's shaper: I read its window, cable or not
 		// And how I play it, which is the mode of whatever shapes it: the
 		// quantizer in my reach's, or volts with none.
 		if (Member* w = at(sWindow))
-			w->heldMode(place, map.scale.divides() ? (map.scale.harmonic ? HELD_HARMONICS : HELD_DIVIDER)
-			                   : !map.scale.any()  ? HELD_VOLTS
-			                   : map.scale.spread  ? HELD_ROLL
+			w->heldMode(place, map->scale.divides() ? (map->scale.harmonic ? HELD_HARMONICS : HELD_DIVIDER)
+			                   : !map->scale.any()  ? HELD_VOLTS
+			                   : map->scale.spread  ? HELD_ROLL
 			                                       : HELD_KEYS);
-		noteWork = map.scale.any()  ? slots.noteOf(map, travel)
-		           : played != travel ? (int)std::round(slots.map(map, travel) * 12.f) // the setting's, for the screen
-		                              : (int)std::round(volts * 12.f);
+		noteWork = map->scale.any()  ? slots.noteOf(*map, travel)
+		           : played != travel ? wholeOf(slots.map(*map, travel) * 12.f) // the setting's, for the screen
+		                              : wholeOf(volts * 12.f);
 		// Under a divider, the band my fader stands on, counted as an Atn
 		// over it divides, once, from the voltage the jack gives.
-		bandWork = map.scale.divides() ? map.divider().band(volts) : NO_BAND;
+		bandWork = map->scale.divides() ? map->divider().band(volts) : NO_BAND;
 	}
 	int bandWork = NO_BAND;
 	int litBand(int sub) override { return bandWork; }
@@ -305,7 +305,7 @@ struct CV : Cartridge, Probe {
 	/** A source: the mapped voltage, in its window, for my jack and for a
 	reader standing on me. */
 	float act(Signal& s, int color, int* value) override {
-		s.setVolts(volts, color, map);
+		s.setVolts(volts, color, *map);
 		return volts * 12.f;
 	}
 	/** The quantizer my window runs through, where there is one, gives me its
@@ -350,7 +350,7 @@ struct CV : Cartridge, Probe {
 	void publishJack() override {
 		outputs[CV_OUTPUT].setVoltage(sane(volts));
 		const tree::Node* q = quantOf();
-		quantHueWork = q ? map.quantColor : -1;
+		quantHueWork = q ? map->quantColor : -1;
 		Member* qm = q ? const_cast<Member*>(static_cast<const Member*>(q)) : nullptr;
 		if (qm && !claimedByReader())
 			if (QuantFace* f = qm->quantFace()) {
@@ -397,7 +397,7 @@ struct CV : Cartridge, Probe {
 		return at(S_KIN);
 	}
 	/** What the next block of CVs takes from me: the window I read. */
-	const Mapping* laneOut() override { return &winIn; }
+	const Sealed* laneOut() override { return &winIn; }
 	std::vector<Member*> gap, todo; // my parse's, kept for their room
 	void parsed(const tree::Left& left, int pass) override {
 		Cartridge::parsed(left, pass);
@@ -457,7 +457,7 @@ struct CV : Cartridge, Probe {
 	}
 	int litSemis(int sub) override { return noteWork; }
 	bool windowIn(Mapping& win) override {
-		win = winIn;
+		win = *winIn;
 		return true;
 	}
 	/** A scene stores the fader as it shows: under a cable, mine or a

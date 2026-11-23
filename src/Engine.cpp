@@ -18,7 +18,7 @@ glide, which is asked for afresh after every wake. Then the watch
 table, one flat sweep of every number arriving from outside: every channel
 of every connected jack every sample, every param every control period.
 Then the pokes, for what the user interface has written behind the rig's
-back. Anything the sweep marks is given its own sample of private work as
+back, behind a bell that says whether there can be any. Anything the sweep marks is given its own sample of private work as
 well, so a module that was not subscribed cannot miss an edge on a jack that
 has only just moved. */
 
@@ -26,6 +26,7 @@ namespace rig {
 
 static std::atomic<uint32_t> epoch{1};
 static std::atomic<uint32_t> cables{1};
+static std::atomic<uint32_t> bell{1};
 
 uint32_t topology() {
 	return relaxed(epoch);
@@ -38,6 +39,12 @@ uint32_t wiring() {
 }
 void bumpWiring() {
 	cables.fetch_add(1, std::memory_order_relaxed);
+}
+uint32_t rung() {
+	return bell.load(std::memory_order_acquire);
+}
+void ring() {
+	bell.fetch_add(1, std::memory_order_release);
 }
 
 
@@ -120,25 +127,58 @@ static inline bool sweep(std::vector<W>& table, std::vector<Member*>& stirs, boo
 	return any;
 }
 
+/** The RIG whose molecule the rig hosted by `self` stands in, or none: the
+bonds walked leftward from the host, each read from both its ends as a rig's
+own are (`bondedRight`), over the members of the sections before mine and the
+GAPs between them, to the RIG that starts the molecule; a bypassed module
+ends it, as it ends the RIG's own walk (`RigCore::eachInMolecule`). Walked
+only when the topology has moved, which every module of ours rings for,
+the bonders too. */
+static Recaller* recallerLeftOf(Member* self) {
+	Module* at = self;
+	for (int guard = 0; guard < 4096; guard++) {
+		Module* l = at->leftExpander.module;
+		if (!l || l->rightExpander.module != at || l->isBypassed())
+			return nullptr;
+		if (Recaller* r = dynamic_cast<Recaller*>(l))
+			return r;
+		if (!isFamily(l) && !(isBonder(l) && bondsToLeft(l)))
+			return nullptr;
+		at = l;
+	}
+	return nullptr;
+}
+
+void Host::meet(Member* self, int64_t frame) {
+	Recaller* r = recallerLeftOf(self);
+	if (r == recaller && (!r || r->born == recallerBorn))
+		return;
+	recaller = r;
+	recallerBorn = r ? r->born : 0;
+	recallerMet = frame;
+	askOwed = r != nullptr;
+	askTaken = restartsTaken = 0;
+}
+
+bool Host::takeAsk() {
+	if (!recaller || !(askOwed || relaxed(recaller->askedNow) != askTaken))
+		return false;
+	bool restart = false;
+	if (!recaller->answer(members, recallerMet, askTaken, restartsTaken, restart))
+		return false; // the bank is held: the next sample asks again
+	askOwed = false;
+	restartOwed = restartOwed || restart;
+	return true;
+}
+
 void Member::process(const ProcessArgs& args) {
 	const bool slow = (args.frame % CONTROL_PERIOD) == 0;
 	// Who hosts is settled by the pointers, so it is worked out once and kept
 	// until the topology moves; a member's sample is then two loads and a
 	// return.
-	// A member whose setting is a change of the parse has its rig parsed
-	// again, here and nowhere else: no bump, which would ring every other
-	// rig. Only while the topology stands, since a member may have gone
-	// since the epoch moved; when it has moved, `regrouped` asks the same.
 	const uint32_t now = topology();
-	if (now == knownEpoch) {
-		if (slow && host)
-			for (Member* m : host->members)
-				if (m->parseStale()) {
-					host->bond(this); // a fresh table, which stirs the whole rig
-					break;
-				}
-	}
-	else {
+	const bool moved = now != knownEpoch;
+	if (moved) {
 		knownEpoch = now;
 		// A bypassed module of ours is no member of any rig: it splits the
 		// rig hard where it stands, two rigs that know nothing of each other
@@ -154,21 +194,43 @@ void Member::process(const ProcessArgs& args) {
 		}
 		else if (host->regrouped(this))
 			host->bond(this);
+		if (host)
+			host->meet(this, args.frame);
 		// Woken either way: a wake reads the neighbours as they stand (an
 		// Atn alone or not), which a move beside the rig changes with its
 		// parse unchanged.
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 	if (!host)
 		return;
+	// What a RIG asks of my rig, made here, on my thread, before anything of
+	// this sample reads a param: the parse's question below, the sweep, a
+	// member's own sample.
+	const bool recalled = host->takeAsk();
+	// A member whose setting is a change of the parse has its rig parsed
+	// again, here and nowhere else: no bump, which would ring every other
+	// rig. Asked on the control period while the topology stands; on a
+	// sample it moved `regrouped` has asked the same of the members standing
+	// now, with the params as they were before the ask, so it is asked again
+	// only if an ask was answered.
+	if (moved ? recalled : slow)
+		for (Member* m : host->members)
+			if (m->parseStale()) {
+				host->bond(this); // a fresh table, which stirs the whole rig
+				break;
+			}
 	host->sample(args, slow); // nobody else hosts this rig
 	// Every member's jacks lit, by the host, after the rig is computed: the
 	// host is the one thread that writes them, so it sees every sample they
 	// carry, where a member looking at its own jacks in its own process, on
 	// another of Rack's threads perhaps, could read them before or after
 	// this sample's wake and miss a trigger one sample long (`JackGlow`).
-	for (Member* m : host->members)
-		m->tickJacks(m, args);
+	// A member none of whose code ran on this sample (`Node::worked`) has
+	// written no jack, and its light is told so.
+	for (Member* m : host->members) {
+		m->tickJacks(m, args, m->worked);
+		m->worked = false;
+	}
 }
 
 bool Host::regrouped(Member* self) {
@@ -195,6 +257,7 @@ void Host::bond(Member* self) {
 	counts.clear();
 	liveCounts.clear();
 	knownWiring = 0; // whatever the cables are doing, the table is stale
+	bellKnown = false;
 	members.push_back(self);
 	for (Member* m = bondedRight(self); m; m = bondedRight(m))
 		members.push_back(m);
@@ -259,12 +322,17 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 	// A wake asked only for a writer's ramp (`fineTick`) runs only the
 	// readers that play it, and nothing else may have asked.
 	bool coarse = false;
-	for (Member* m : tickers)
+	for (Member* m : tickers) {
+		m->worked = true;
 		if (m->everySample(args)) {
-			m->markDirty();
+			if (m->fineTick)
+				m->markRamp();
+			else
+				m->markDirty();
 			wake = true;
 			coarse = coarse || !m->fineTick;
 		}
+	}
 	// The table, and the buttons beside it, because a press is an edge and
 	// an edge missed is a trigger that never happened.
 	sweep(jacks, stirs);
@@ -275,17 +343,26 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 		sweep(knobs, stirs, true);
 		rewire |= sweep(counts, stirs);
 	}
-	for (Member* m : members)
-		if (relaxed(m->poke) && m->poke.exchange(false, std::memory_order_relaxed)) {
-			m->settingsMoved = true;
-			stir(m, stirs);
-		}
-	// The bracket's RESET pressed: every node it restarts, nearest the right end
-	// first.
-	bool synced = false;
-	for (Member* m : members)
-		if (relaxed(m->resetAsked) && m->resetAsked.exchange(false, std::memory_order_relaxed))
-			synced = true;
+	// The pokes and the bracket's RESET, looked for only when the bell has
+	// rung since the last look: every write of either flag rings it (`rung`).
+	// A RESET pressed, or a restart a RIG asked for with the ask just
+	// answered (`takeAsk`, which needs no bell: it is this host's own),
+	// restarts every node it restarts, nearest the right end first.
+	bool synced = restartOwed;
+	restartOwed = false;
+	const uint32_t bellNow = rung();
+	if (bellNow != knownBell || !bellKnown) {
+		knownBell = bellNow;
+		bellKnown = true;
+		for (Member* m : members)
+			if (taken(m->poke)) {
+				m->settingsMoved = true;
+				stir(m, stirs);
+			}
+		for (Member* m : members)
+			if (taken(m->resetAsked))
+				synced = true;
+	}
 	// The frame the rig started on, its first sample or a reset taken, for a
 	// RIG to my left telling a start's own pulse from the patch's
 	// (`RigCore::echoOfStart`).
@@ -295,6 +372,7 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 	if (synced)
 		for (size_t i = restarts.size(); i-- > 0;) {
 			Member* r = restarts[i];
+			r->worked = true;
 			r->onRestart();
 			r->settingsMoved = true;
 			stir(r, stirs);
@@ -323,8 +401,10 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 		m->stirred = false;
 		m->markDirty();
 		wake = true;
-		if (!m->subscribed)
+		if (!m->subscribed) {
+			m->worked = true;
 			m->everySample(args);
+		}
 	}
 	if (!wake) {
 		if (slow)
@@ -333,15 +413,18 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 		return;
 	}
 
-	const bool fineOnly = ran && !coarse && !fresh && !synced && !slow && stirs.empty();
+	// A sample that swept no knob, rebuilt no table and took no reset: what
+	// it marked is all that moved. Then a wake asked for the ramps alone is
+	// the fine group's, and one asked for more still leaves each node its
+	// own answer to whether more than its ramp moved (`tree::evaluate`).
+	const bool plain = ran && !fresh && !synced && !slow;
+	const bool fineOnly = plain && !coarse && stirs.empty();
 	if (fineOnly && fineStale) {
 		fineStale = false;
 		tree::fineGroup(nodes, fine);
 	}
 	ran = true;
-	tree::fineMoved = false;
-	tree::evaluate(nodes, args, fineOnly);
-	if (tree::fineMoved)
+	if (tree::evaluate(nodes, args, fineOnly, plain))
 		fineStale = true;
 	linesOwed = true;
 	bracketLines(args);
@@ -363,7 +446,7 @@ void Host::bracketLines(const Module::ProcessArgs& args) {
 		return;
 	if (args.sampleRate != linesRate) {
 		linesRate = args.sampleRate;
-		linesEvery = std::max(1, (int)std::lround(args.sampleRate) * LINES_MS / 1000);
+		linesEvery = std::max(1, wholeOf(args.sampleRate) * LINES_MS / 1000);
 	}
 	else if (linesKnown && args.frame < linesDue)
 		return;

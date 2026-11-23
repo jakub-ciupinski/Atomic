@@ -415,7 +415,7 @@ the hover, while cables are stacked in IN. */
 	bool gathersNothing() override { return chain.empty() && !jackParsed; }
 	int choiceParam() override { return Self::GATHER_PARAM; }
 	/** The strip's choice as it stands, an integer from its param. */
-	int choiceCode() { return (int)std::lround(params[Self::GATHER_PARAM].getValue()); }
+	int choiceCode() { return wholeOf(params[Self::GATHER_PARAM].getValue()); }
 	int choiceParsed = 0; // the choice the parse gathered by
 	int nearestWork = -1; // the kind the nearest choice comes to, for `nearestNow`
 	/** A new choice on the strip is a new gathering, which the parse makes,
@@ -587,8 +587,15 @@ the hover, while cables are stacked in IN. */
 		unpackSpan(relaxed(shown[c]), foot, top);
 		return true;
 	}
-	bool wantsTick() override { return true; } // the meter is ticked every sample; it does the work on the control period
+	/** On the tick while a bar has anywhere to go, a level seen since the
+	last look or a mark still falling to its level, and while cables are
+	stacked. With every bar standing on its level a look moves nothing
+	(`Held::rests`), and a level moves only in a wake, which sees it
+	(`seeLevels`), so a gatherer over a still rig leaves the list as a stopped
+	Clock does. */
+	bool wantsTick() override { return stacked || !barsRest; }
 	HeldSpan held[BARS];
+	bool barsRest = false; // the last look left every bar on its level, and no wake has seen one since
 	/** A bar's level: a row a source, the ones left out of the jack too, so
 	a row keeps its level whether it is in or out. `k` is the wake's count,
 	not the jack's, since Rack keeps an uncabled output at nought channels.
@@ -601,6 +608,7 @@ the hover, while cables are stacked in IN. */
 	void seeLevels() {
 		for (int c = 0; c < BARS; c++)
 			held[c].see(barLevel(c));
+		barsRest = false;
 	}
 	/** Stacked cables are read one by one, and the row is woken by the
 	input's sum alone, which two sources moving against each other leave
@@ -610,10 +618,14 @@ the hover, while cables are stacked in IN. */
 		if (args.frame % CONTROL_PERIOD)
 			return wake;
 		const float dt = (float)CONTROL_PERIOD * args.sampleTime;
+		bool rest = true;
 		for (int c = 0; c < BARS; c++) {
-			held[c].look(barLevel(c), dt, 10.f);
+			const float level = barLevel(c);
+			held[c].look(level, dt, 10.f);
 			shown[c].store(held[c].packed(), std::memory_order_relaxed);
+			rest = rest && held[c].rests(level, 10.f);
 		}
+		barsRest = rest;
 		return wake;
 	}
 	/** A row's colour and its face, each plus one in four bits, nought for

@@ -159,7 +159,7 @@ struct QntShaper {
 				held.push_back(HeldModule(q));
 				froms.push_back(q->params[paramOf()].getValue());
 			}
-			shapeFrom = (int)std::round(k->params[paramOf()].getValue());
+			shapeFrom = wholeOf(k->params[paramOf()].getValue());
 			// A keyboard opened past one octave for the first time copies its
 			// first octave up (`openKeyboardWith`), so the keys are part of
 			// what the stroke changed and go into its undo, and an undone
@@ -212,7 +212,7 @@ struct QntShaper {
 		// semitone is a small move.
 		// A cent is finer still: the whole ninety-nine in thirty millimetres.
 		const float pitch = mm2px(shape == SHAPE_OCTAVES ? 4.f : shape == SHAPE_TUNE ? 0.3f : 1.8f);
-		int steps = (int)std::round((shapeY - APP->scene->rack->getMousePos().y) / pitch);
+		int steps = wholeOf((shapeY - APP->scene->rack->getMousePos().y) / pitch);
 		const int n = std::max(1, k->shownNow().octaves);
 		// Past an end the stroke takes hold again where it stands, as every
 		// screen does, so turning back moves the value at once: the anchor
@@ -287,13 +287,13 @@ struct QntShaper {
 				for (int i = 0; i < 12; i++)
 					if (k->params[Qnt::keyParam(i)].getValue() > 0.5f)
 						mask |= (uint16_t)(1u << i);
-				const int tr = k->chromaticNow() ? (int)std::round(k->params[Qnt::TRANSPOSE_PARAM].getValue()) : 0;
+				const int tr = k->chromaticNow() ? wholeOf(k->params[Qnt::TRANSPOSE_PARAM].getValue()) : 0;
 				const std::string nm = patternNameFrom(rotateMask(mask, tr), eucMod(tr, 12));
 				say(string::f("Rotation: %+d", steps) + (nm.empty() ? std::string() : ", " + nm));
 			}
 		}
 		for (Qnt* q : members())
-			q->poke.store(true, std::memory_order_relaxed);
+			q->wake();
 	}
 	void end(Qnt* k) {
 		if (!k || shape == SHAPE_NONE) {

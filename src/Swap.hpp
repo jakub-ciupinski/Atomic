@@ -20,7 +20,7 @@ inline const Gesture G_SWAP_DUP = declare(On::Key, Mod::Alt, Rank::Known, "Alt+D
 /** A width and a position on the rack, in grid units counted: they are whole
 numbers of them, and are compared as such. */
 inline int gridUnits(float px) {
-	return (int)std::round(px / RACK_GRID_WIDTH);
+	return wholeOf(px / RACK_GRID_WIDTH);
 }
 
 /** Where every module stands, before a step that moves some of them. */

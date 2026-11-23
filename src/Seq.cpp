@@ -1,6 +1,7 @@
 // Atomic, a VCV Rack plugin. Copyright (C) 2026 Jakub Ciupinski.
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "HeadBase.hpp"
+#include <optional>
 
 /** Seq, the playhead: walks the block of cartridges to its left on a clock and
 sounds the step it stands on at OUT, and alone is an arpeggiator. */
@@ -282,12 +283,14 @@ wake every sample. Plain fields, the engine's. */
 	uint32_t rtResets = 0, rtStarts = 0;
 	bool rateTurnOn = false;
 	double rtSpeedWas = 0.0; // the turn's places a frame at the last wake, nought where it stood
+	Again<float, double> rtSweep; // two to the jack's volts, kept while they stand (`rateTurn`)
 	// In ONCE, whether the walk under the turn stood at the pass's end at the
 	// last wake, held there (`place`): spent there, the turn has nothing left
 	// to carry and stands.
 	bool rtAtEnd = false;
 	int rateWalkWork = RATE_ONE; // the rate the writer walks at: free, the last it took smoothly (`rtAsk`)
 	int rateSetWork = RATE_ONE;  // the screen's rate, which a free rate's turn walks at
+	RatioKept walkRatio, setRatio; // and each one's ratio, kept until it moves
 	float rateVoltsWork = 0.f;   // and the jack's volts, where they turn it
 	/** The rate a free Seq has asked its writer for: the screen's, taken
 	only where the writer takes it with nothing moved (`takesRateSmoothly`),
@@ -615,7 +618,7 @@ wake every sample. Plain fields, the engine's. */
 		else
 			jumpClick.store(step, std::memory_order_relaxed);
 		holding.store(down, std::memory_order_relaxed);
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 		return true;
 	}
 	// HALT, driven: the writer ignores pulses and holds where it stands, and
@@ -640,7 +643,7 @@ wake every sample. Plain fields, the engine's. */
 	engine's at once and the param the UI's, written on its own thread. */
 	void keepStep(int to, const char* name, bool performed) {
 		const float now = params[STEP_PARAM].getValue();
-		if (to == (keptStep >= 0 ? keptStep : (int)std::round(now)))
+		if (to == (keptStep >= 0 ? keptStep : wholeOf(now)))
 			return;
 		keptFrom = now;
 		keptStep = to;
@@ -651,9 +654,10 @@ wake every sample. Plain fields, the engine's. */
 	int rateSet() { return rateParamOf(this, RATE_PARAM); }
 	/** The rate, told what this module's own controls say. */
 	RateIn& rateCore() {
-		rate = rateInOf(this, RATE_PARAM, RATE_INPUT);
+		rate = rateInOf(this, RATE_PARAM, RATE_INPUT, &rateKept);
 		return rate;
 	}
+	RateIn::Kept rateKept; // the engine's keeper of the rate's reading (`rateInOf`)
 	/** The rate in force: the screen's, moved by the RATE jack as a Clock's
 	is, a volt an octave around it, nought volts leaving it; whole, snapped to
 	the nearest whole rung; free, its point lit, continuous, which the walk
@@ -1039,7 +1043,7 @@ wake every sample. Plain fields, the engine's. */
 			retipOut(this, CV_OUTPUT, {outName, "The step under the playhead."});
 	}
 
-	Mode mode() { return (Mode)clamp((int)std::round(params[MODE_PARAM].getValue()), 0, MODES - 1); }
+	Mode mode() { return (Mode)clamp(wholeOf(params[MODE_PARAM].getValue()), 0, MODES - 1); }
 	/** Whether there is nothing to preview: standing alone, an
 	arpeggiator, and over Trgs, where a step is a trigger lit or not and a
 	hand has nothing to hear. */
@@ -1103,12 +1107,12 @@ wake every sample. Plain fields, the engine's. */
 			resetAsked = true;
 			wake = true;
 		}
-		if (resetClick.exchange(false, std::memory_order_relaxed)) {
+		if (taken(resetClick)) {
 			resetAsked = true;
 			resetByHand = true;
 			wake = true;
 		}
-		const int j = jumpClick.exchange(-1, std::memory_order_relaxed);
+		const int j = taken(jumpClick, -1);
 		if (j >= 0) {
 			jumpAsked = j;
 			wake = true;
@@ -1192,7 +1196,7 @@ wake every sample. Plain fields, the engine's. */
 			}
 	}
 	int lane = -1;                 // my lane on every member of it
-	Mapping winOut;
+	Sealed winOut;
 	// The member under the playhead as the last wake left it, `stoodWork`
 	// published, for the sim's probe alone (`stoodOut`): the nodes to my
 	// right read `stoodWork` in the pass.
@@ -1286,7 +1290,7 @@ wake every sample. Plain fields, the engine's. */
 	int readerColor() override { return color; }
 	void onRestart() override {
 		synced = true;
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 	/** My walk as the bracket's mark compares it with the other Seqs of my count
 	(`rig::inLine`): where I stand, never what was done to get there. The mark
@@ -1305,12 +1309,12 @@ wake every sample. Plain fields, the engine's. */
 		l.cycle = cycle;
 		return true;
 	}
-	const Mapping* windowOut() override { return (traits & tree::T_SHAPER) ? &winOut : nullptr; }
+	const Sealed* windowOut() override { return (traits & tree::T_SHAPER) ? &winOut : nullptr; }
 	/** The window my jack's note was played in, for an OUT Atn reading me:
 	the step's, while I sound a keyboard's notes of a block of CVs; nothing
 	while my jack is volts, a chord, triggers or a divider's lines. */
 	bool playedNotes = false;
-	const Mapping* playedOut() override { return playedNotes ? &winOut : nullptr; }
+	const Sealed* playedOut() override { return playedNotes ? &winOut : nullptr; }
 	// Forwarded to the member under the playhead: a quantizer's face and the
 	// window chain.
 	QuantFace* quantFace() override { return stoodWork ? stoodWork->quantFace() : nullptr; }
@@ -1657,7 +1661,7 @@ wake every sample. Plain fields, the engine's. */
 			keepStep(a.jumpTo, "jump to step", false);
 		// The step picked, an integer at its source; past the block's end it stands on the last step.
 		w.place = placeOf(
-		    clamp(keptStep >= 0 ? keptStep : (int)std::round(params[STEP_PARAM].getValue()), 0, std::max(count - 1, 0)),
+		    clamp(keptStep >= 0 ? keptStep : wholeOf(params[STEP_PARAM].getValue()), 0, std::max(count - 1, 0)),
 		    count, dir);
 		w.wAlong = w.wOwnAlong = 0.0;
 	}
@@ -1666,7 +1670,7 @@ wake every sample. Plain fields, the engine's. */
 	void paceWriter(const ThisWake& w, const ProcessArgs& args) {
 		const int64_t f = args.frame;
 		int n, d;
-		ratioOfRate(rateWalkWork, n, d);
+		walkRatio.of(rateWalkWork, n, d);
 		// Under a Clock in hertz the window is one frame, a cable's sample:
 		// an EOC sent into RESET on the same Clock binds to its pulse, where
 		// with none it was a hard sync a sample behind the grid. A millisecond
@@ -2254,7 +2258,8 @@ wake every sample. Plain fields, the engine's. */
 		Signal sig;
 		if (routeWork)
 			sig.setVolts(in.get() + (m->cv.live() ? m->cv.get() : 0.f), color, Mapping());
-		Sound o;
+		Sound& o = leftSound;
+		o.fresh();
 		m->sound(0, sig, color, o);
 		if (routeWork)
 			o.semis = 12.f * sane(o.semis / 12.f);
@@ -2373,7 +2378,7 @@ wake every sample. Plain fields, the engine's. */
 		if (snd.type == Sound::TRIG)
 			writeGates(landed, w, args);
 		else if (snd.type == Sound::CHORD) {
-			jackWidth = writeChord(outputs[CV_OUTPUT], snd.chord);
+			jackWidth = writeChord(outputs[CV_OUTPUT], snd.chord());
 			slewStops();
 			bandLimit(nullptr, 0, w, args.frame);
 			outPolyWork = true;
@@ -2521,7 +2526,7 @@ wake every sample. Plain fields, the engine's. */
 		rateSetWork = ri.set;
 		rateVoltsWork = rateFm ? clamp(ri.cv, -10.f, 10.f) : 0.f;
 		int sn, sd;
-		ratioOfRate(ri.set, sn, sd);
+		setRatio.of(ri.set, sn, sd);
 		rtWNum = wr.num;
 		rtWDen = wr.den;
 		rtBehind = rateFree && !wr.armed && (wr.num != sn || wr.den != sd);
@@ -2625,7 +2630,7 @@ wake every sample. Plain fields, the engine's. */
 			}
 		}
 		lastCount = count;
-		dir = (Dir)clamp((int)std::round(params[DIR_PARAM].getValue()), 0, DIRS - 1);
+		dir = (Dir)clamp(wholeOf(params[DIR_PARAM].getValue()), 0, DIRS - 1);
 		if (dir == DIR_PENDULUM && curvesWork)
 			dir = DIR_BOUNCE;
 		cycle = cycleOf(count, dir);
@@ -2649,7 +2654,7 @@ wake every sample. Plain fields, the engine's. */
 			return 0.0;
 		}
 		int n, d;
-		ratioOfRate(rateWalkWork, n, d);
+		walkRatio.of(rateWalkWork, n, d);
 		const double r = (double)c->tickN * (double)n / ((double)c->tickD * (double)d);
 		const double since = (double)(c->turnWhole - ctBWhole) + (c->turnFrac - ctBFrac);
 		const bool fresh = c->source != ctFrom || c->resets != ctResets || w.starts != ctStarts;
@@ -2695,9 +2700,12 @@ wake every sample. Plain fields, the engine's. */
 		double speed = 0.0;
 		if (rateTurnOn) {
 			int n, d;
-			ratioOfRate(rateSetWork, n, d);
-			const double gain = std::exp2((double)rateVoltsWork) - 1.0;
-			speed = gain * (double)n / ((double)d * c->period);
+			setRatio.of(rateSetWork, n, d);
+			// Two to the jack's volts, asked of the library when they move:
+			// a turn is worked out at every wake, and the volts of a
+			// sequence in the jack stand between its steps.
+			const double sweep = rtSweep.of(rateVoltsWork, [](float volts) { return std::exp2((double)volts); });
+			speed = (sweep - 1.0) * (double)n / ((double)d * c->period);
 			// The screen's rate ahead of the writer's journey, or behind it.
 			if (rtBehind)
 				speed += ((double)n / (double)d - (double)rtWNum / (double)rtWDen) / c->period;
@@ -2706,7 +2714,7 @@ wake every sample. Plain fields, the engine's. */
 			// walks the rest of the pass, at the whole rate in force, the
 			// screen's times two to the volts (`place` holds it at the end).
 			if (w.once && wr.spent)
-				speed = std::exp2((double)rateVoltsWork) * (double)n / ((double)d * c->period);
+				speed = sweep * (double)n / ((double)d * c->period);
 		}
 		if (fresh) {
 			rebased = rtPlaces != 0.0;
@@ -3259,9 +3267,10 @@ wake every sample. Plain fields, the engine's. */
 
 #include "SeqSound.hpp"
 
-	/** A wake the host made for the ramp alone (`Node::fineWake`): a reader's
-	fine tick, nothing else in the rig moved, no pulse, no reset, no jack and
-	no knob swept. Then only how far through its step the walk stands can have
+	/** A wake that is mine for the ramp alone (`Node::fineWake`): a reader's
+	fine tick, and nothing else in the rig moved, or what moved marked other
+	nodes and not me: no pulse, no reset, no jack and no knob of mine, no
+	child's answer. Then only how far through its step the walk stands can have
 	changed since the last whole wake, so the census, the writer's events and
 	the place are that wake's, and the walk's along is read afresh and turned
 	into the member's along exactly as `place` does. Taken only where the
@@ -3290,7 +3299,7 @@ wake every sample. Plain fields, the engine's. */
 		// the whole one there, an EOC and a step apart.
 		if (fineReady && rateCore().isFree()) {
 			int sn, sd;
-			ratioOfRate(rateSetWork, sn, sd);
+			setRatio.of(rateSetWork, sn, sd);
 			fineReady = wr.armed || (wr.num == sn && wr.den == sd);
 		}
 		if (!fineReady)
@@ -3340,11 +3349,11 @@ wake every sample. Plain fields, the engine's. */
 			place(w);
 			keepForFine(w);
 		}
-		const Sound snd = soundStep(w, args);
+		const Sound& snd = soundStep(w, args);
 		const bool gates = w.gates, overCV = w.overCV, phased = w.phased, fires = w.fires;
-		winOut = snd.window;
+		winOut.take(snd.window());
 		playedNotes = snd.type == Sound::VOLTS && snd.band == NO_BAND && snd.voices <= 1 && !chain.empty() &&
-		              (chain[0]->traits & tree::T_CV) && snd.window.quantized() && !snd.window.scale.spread;
+		              (chain[0]->traits & tree::T_CV) && snd.window()->quantized() && !snd.window()->scale.spread;
 
 		slewModeWork = slewModeOf(w);
 		writeJack(snd, fires, w, args);

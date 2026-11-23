@@ -271,6 +271,42 @@ inline void ratioOfRate(int h, int& n, int& d) {
 	n /= a;
 	d /= a;
 }
+/** A rate's ratio as one thing, for an asker that keeps it. */
+struct Ratio {
+	int n = 1, d = 1;
+};
+inline Ratio ratioOfRate(int h) {
+	Ratio r;
+	ratioOfRate(h, r.n, r.d);
+	return r;
+}
+/** A rate's ratio kept from one asking to the next (`Again`): a Clock asks
+its division's twice a sample and a Seq its rate's at every wake, of a rate
+that moves when a hand, a jack or a beat moves it, and the lowest terms are a
+run of divisions, three for a whole rate and a dozen or more for a fine one.
+The engine's own, as everything it is asked of is. */
+struct RatioKept {
+	void of(int h, int& n, int& d) {
+		const Ratio& r = kept.of(h, [](int rate) { return ratioOfRate(rate); });
+		n = r.n;
+		d = r.d;
+	}
+
+private:
+	Again<int, Ratio> kept;
+};
+/** A count times a whole number, as the double nearest the product, rounded
+once: in 64 bits where the product fits them, which the multiply itself says,
+and in 128 where it does not, the one double either way. A Clock's ticks
+times a millionth's denominator pass 64 bits in about three weeks at 20 kHz,
+so the wide form has to be there; it is two library calls on Windows, and
+until those weeks are up nothing makes them. */
+inline double productOf(int64_t count, int64_t by) {
+	int64_t p;
+	if (!__builtin_mul_overflow(count, by, &p))
+		return (double)p;
+	return (double)((__int128)count * by);
+}
 /** A whole step rate, x2 or /3, as the same ratio. */
 inline void ratioOf(int stepRate, int& n, int& d) { ratioOfRate(rateOfStep(stepRate), n, d); }
 
@@ -328,8 +364,8 @@ inline int rateOfRatio(double r) {
 	const double top = (double)RATE_MAX;
 	r = std::min(std::max(r, 1.0 / top), top);
 	if (r >= 1.0)
-		return (int)std::llround(r * RATE_ONE);
-	const int m = (int)std::llround((double)RATE_ONE / r);
+		return wholeOf(r * RATE_ONE);
+	const int m = wholeOf((double)RATE_ONE / r);
 	return 2 * RATE_ONE - m;
 }
 /** A free rate's jack: one volt an octave around the screen's rate, the
@@ -363,8 +399,8 @@ inline int wholeSweep(int from, float volts) {
 	ratioOf(from, p0, q0);
 	const double e = std::exp2(2.0 * v);
 	const double t = (double)p0 / (double)q0 * std::exp2(v);
-	int s = t >= 1.0 ? (int)std::lround(std::min(t, (double)RATE_MAX))
-	                 : 2 - (int)std::lround(std::min(1.0 / t, (double)RATE_MAX));
+	int s = t >= 1.0 ? wholeOf(std::min(t, (double)RATE_MAX))
+	                 : 2 - wholeOf(std::min(1.0 / t, (double)RATE_MAX));
 	// Past the boundary between rung `lo` and the one above it; standing on
 	// it counts as past when the volts point up.
 	const auto past = [&](int lo) {
@@ -397,10 +433,31 @@ struct RateIn {
 	int rate() const {
 		if (!patched)
 			return set;
-		if (isFree())
-			return octaveSweep(set, cv);
-		return rateOfStep(wholeSweep(wholeStepOf(set), cv));
+		const Swept asked{set, isFree(), cv};
+		return kept ? kept->swept.of(asked, [](const Swept& s) { return s.rate(); }) : asked.rate();
 	}
+	/** What a cable in the jack is asked: the screen's rate, the law and
+	the volts, which are all its answer reads. */
+	struct Swept {
+		int set;
+		bool free;
+		float cv;
+		bool operator==(const Swept& o) const { return set == o.set && free == o.free && cv == o.cv; }
+		int rate() const { return free ? octaveSweep(set, cv) : rateOfStep(wholeSweep(wholeStepOf(set), cv)); }
+	};
+	/** What the engine keeps of a rate's reading from one sample to the
+	next (`Again`), a module's own: the param's float made a rate, two
+	roundings, and the jack's sweep of it, two or three of the library's
+	powers of two, which on Windows are the x87's. Both are asked every
+	sample of a Clock and every wake of a Seq, of a hand's setting and of
+	volts that stand between a sequence's steps or stand altogether, and
+	are worked out again when one of them moves; volts that never stand,
+	an oscillator in the jack, are worked out every time, as they were. */
+	struct Kept {
+		Again<float, int> param;
+		Again<Swept, int> swept;
+	};
+	Kept* kept = nullptr; // the engine's, handed in where it reads (`rateInOf`); a screen has none
 };
 
 /** A rate's mode, whole or free, a Clock's division and a Seq's rate
@@ -445,8 +502,8 @@ inline int rateOfValue(float v) {
 	// Held to the ladder before rounding, which is the same since both ends
 	// stand on the grid, so the millionths always fit an int.
 	const double x = std::min(std::max((double)v, (double)RATE_MIN), (double)RATE_MAX);
-	const int q = rateQuantum((int)std::lround(x * RATE_ONE));
-	return (int)std::lround(x * (RATE_ONE / q)) * q;
+	const int q = rateQuantum(wholeOf(x * RATE_ONE));
+	return wholeOf(x * (RATE_ONE / q)) * q;
 }
 /** And a rate in millionths as the param holds it, a step rate: the nearest
 float, divided in double so it is rounded once. */
@@ -457,11 +514,16 @@ inline int rateParamOf(Module* m, int paramId) { return rateOfValue(m->params[pa
 /** A module's rate as its own controls say: the screen's rate and the RATE
 jack that sweeps it, a Clock's and a Seq's alike. Read on every sample, so the
 module is its own type, a Module that is a RateMode, and its mode is reached
-with no cast at run time (`rateModeOf`'s cross-cast cost 60 ns a call). */
+with no cast at run time (`rateModeOf`'s cross-cast cost 60 ns a call). The
+engine, which is the one that reads it every sample, hands in its keeper
+(`RateIn::Kept`), and the param's float is made a rate again, and the jack's
+volts a sweep of it, only when one has moved. A screen, on its own thread,
+hands in none. */
 template <class M>
-inline RateIn rateInOf(M* m, int paramId, int inputId) {
+inline RateIn rateInOf(M* m, int paramId, int inputId, RateIn::Kept* kept = nullptr) {
 	RateIn r;
-	r.set = rateParamOf(m, paramId);
+	r.kept = kept;
+	r.set = kept ? kept->param.of(m->params[paramId].getValue(), [](float v) { return rateOfValue(v); }) : rateParamOf(m, paramId);
 	r.free = static_cast<RateMode*>(m)->rateFreeSet();
 	r.patched = m->inputs[inputId].isConnected();
 	r.cv = m->inputs[inputId].getVoltage();
@@ -523,7 +585,7 @@ struct StepRateQuantity : HintQuantity {
 	void randomize() override {
 		if (!isBounded())
 			return;
-		setValue((float)clamp((int)std::lround(getMinValue() + random::uniform() * (getMaxValue() - getMinValue())),
+		setValue((float)clamp(wholeOf(getMinValue() + random::uniform() * (getMaxValue() - getMinValue())),
 		                      RATE_MIN, RATE_MAX));
 	}
 };

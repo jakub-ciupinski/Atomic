@@ -148,6 +148,11 @@ struct AtnMeter {
 	the audio thread's,
 	published as `lanesNow` at the look, after the lanes it counts. */
 	int n = 1;
+	/** The most lanes followed since the meter was last put down: every lane
+	from here up stands as `rest` leaves one, its three atomics with it, having
+	been written by nothing since, so `rest` puts down the lanes below it and
+	no more. A count, raised where the lanes followed grow. */
+	int used = 1;
 	float anchorWas = 0.f;
 	int crossWindow = 0;  // samples into the window, every lane's alike
 	std::atomic<float> peakNow[PORT_MAX_CHANNELS] = {};
@@ -174,6 +179,7 @@ struct AtnMeter {
 		for (int c = n; c < count; c++)
 			lane[c].rest();
 		n = count;
+		used = std::max(used, n);
 		const float k = std::min(1.f, 50.f * args.sampleTime);
 		for (int c = 0; c < n; c++) {
 			Lane& l = lane[c];
@@ -230,13 +236,13 @@ struct AtnMeter {
 	processing shows a still, empty column rather than the last thing it
 	saw. */
 	void rest() {
-		for (int c = 0; c < PORT_MAX_CHANNELS; c++) {
+		for (int c = 0; c < used; c++) {
 			lane[c].rest();
 			levelNow[c].store(0.f, std::memory_order_relaxed);
 			peakNow[c].store(0.f, std::memory_order_relaxed);
 			audioNow[c].store(false, std::memory_order_relaxed);
 		}
-		n = 1;
+		n = used = 1;
 		anchorWas = 0.f;
 		crossWindow = 0;
 		anchorNow.store(0.f, std::memory_order_relaxed);
@@ -378,10 +384,22 @@ struct Atn : Cartridge, Probe {
 		return heldYet ? !heldOnNotes() : !(told() & tree::TOLD_PITCH);
 	}
 	/** The window as it arrived, for my own jack. */
-	Mapping winLeft;
-	/** The window as I read it this wake: the one arriving, with the scale
-	taken off where I am held plain. */
-	Mapping winSeen;
+	Sealed winLeft;
+	/** The scale I snap by this wake laid: `scale`, or none for a null,
+	which is nearly every wake's and is laid only where it does not already
+	stand (`snapBare`). A scale wears no seal as a window does, so the
+	wake that lays it keeps the one fact. */
+	bool snapBare = false;
+	void snapBy(const Scale* scale) {
+		if (scale) {
+			snapWork = *scale;
+			snapBare = false;
+		}
+		else if (!snapBare) {
+			snapWork = Scale();
+			snapBare = true;
+		}
+	}
 	// How the CV whose window I shape plays it (`heldMode`), a wake late,
 	// passed to me through a Qnt standing between us, which I know nothing of.
 	// Before the first word since the parse, the parse's `TOLD_PITCH` alone.
@@ -645,7 +663,7 @@ struct Atn : Cartridge, Probe {
 		heldWork = mode;
 		heldYet = true;
 		written();
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 	/** Whose window I shape: my window slot's, the shaper before me in my
 	gap; and where it finds nothing and the block of CVs holding my gap has no
@@ -905,7 +923,7 @@ struct Atn : Cartridge, Probe {
 		return clamp(glides ? ofsGlide.played(set) : set, -1.f, 1.f);
 	}
 	bool windowIn(Mapping& win) override {
-		win = winIn;
+		win = *winIn;
 		return true;
 	}
 	/** The top a cable at the VCA jack makes of the knob: the knob scaled by
@@ -939,6 +957,10 @@ struct Atn : Cartridge, Probe {
 	poly offset shifts each channel by its own voice as a poly gain scales
 	each by its own; a mono cable shifts them all alike. */
 	float ofsAmountOf(float a, int u, const Scale& scale, int voice = 0) {
+		return onKeys(ofsSummed(a, voice), u, scale);
+	}
+	/** The fader and its jack summed, before any keyboard lands the sum. */
+	float ofsSummed(float a, int voice = 0) {
 		if (ofsCv.live()) {
 			// One volt, as this unit counts: the octave, whatever it is
 			// called here, which is a tenth of the bar in volts and twelve
@@ -947,7 +969,7 @@ struct Atn : Cartridge, Probe {
 			const float octave = 1.f / (float)OfsCore::MAX_VOLTS;
 			a = clamp(a + ofsCv.getVoice(voice) * octave, -1.f, 1.f);
 		}
-		return onKeys(a, u, scale);
+		return a;
 	}
 	/** A bar landed on the keyboard in reach. A keyboard's notes only: a roll
 	is a chord drawn on the piano and is transposed as one, a semitone a step,
@@ -956,7 +978,7 @@ struct Atn : Cartridge, Probe {
 	*/
 	static float onKeys(float a, int u, const Scale& scale) {
 		if (u == OfsCore::UNIT_SEMIS && scale.any() && !scale.spread)
-			a = clamp((float)shiftOnScale((int)std::round(a * (float)OfsCore::SEMI_REACH), scale) /
+			a = clamp((float)shiftOnScale(wholeOf(a * (float)OfsCore::SEMI_REACH), scale) /
 			              (float)OfsCore::SEMI_REACH,
 			          -1.f, 1.f);
 		return a;
@@ -985,8 +1007,8 @@ struct Atn : Cartridge, Probe {
 	named as they are. */
 	void spanEnds(float lo, float hi, int& foot, int& top) {
 		const Scale scale = snapScale.load();
-		const int a = (int)std::round(lo * 12.f), b = (int)std::round(hi * 12.f);
-		const int ofsSemis = (int)std::round(ofsAmount() * (float)OfsCore::SEMI_REACH);
+		const int a = wholeOf(lo * 12.f), b = wholeOf(hi * 12.f);
+		const int ofsSemis = wholeOf(ofsAmount() * (float)OfsCore::SEMI_REACH);
 		// Over a roll, which does not repeat and shares the whole travel
 		// among its notes whatever the span, the ends are the roll's own
 		// lowest and highest notes, moved by the offset, never the span's
@@ -1030,7 +1052,7 @@ struct Atn : Cartridge, Probe {
 		// its jack what it shapes the CVs in. An Atn no block claims, walked
 		// by a Seq or standing alone, goes by its left.
 		if (!heldYet && !(told() & (tree::TOLD_PITCH | tree::TOLD_PLAIN))) {
-			return ofs.shift(winLeft, ofsAmountLeft(voice)) / 12.f;
+			return ofs.shift(*winLeft, ofsAmountLeft(voice)) / 12.f;
 		}
 		const float a = ofsAmountWork(voice);
 		return ofs.unitWork == OfsCore::UNIT_SEMIS  ? (float)OfsCore::semis(a) / 12.f
@@ -1040,8 +1062,9 @@ struct Atn : Cartridge, Probe {
 	/** The bar in the unit my left gives me, whatever my holders say: for my
 	own jack and for a reader's cable I sound, both mine to make. */
 	float ofsAmountLeft(int voice = 0) {
-		return ofsPlayedIn(winLeft.musical() ? OfsCore::UNIT_SEMIS : OfsCore::UNIT_VOLTS,
-		                   winLeft.scale.any() ? winLeft.scale : Scale(), voice);
+		// The scale as it stands, never a copy of it or of none: with no note
+		// on it the unit is volts and nothing is landed (`onKeys`).
+		return ofsPlayedIn(winLeft->musical() ? OfsCore::UNIT_SEMIS : OfsCore::UNIT_VOLTS, winLeft->scale, voice);
 	}
 	/** The top in force: the knob driven by the VCA jack, either side of
 	nought, so a Atn inverts a plain voltage and a scale alike. */
@@ -1100,7 +1123,7 @@ struct Atn : Cartridge, Probe {
 
 
 	float gainWake = CV_VOLTS; // the top in force this wake
-	void prepare(const Mapping& win, const ProcessArgs& args) override {
+	void prepare(const Sealed& win, const ProcessArgs& args) override {
 		// The unit and the pattern first, and only then the offset: what a
 		// volt at the offset's jack is worth, and whether the sum lands on a
 		// keyboard, are both things this wake's window says.
@@ -1110,16 +1133,15 @@ struct Atn : Cartridge, Probe {
 		// the lane I am told I continue (`TOLD_LANE`).
 		{
 			Member* w = at(sWindow);
-			const Mapping* m = w ? w->laneOut() : nullptr;
-			winLeft = m ? *m : Mapping();
+			const Sealed* m = w ? w->laneOut() : nullptr;
+			winLeft.take(m ? *m : Sealed::none());
 		}
-		winSeen = win;
-		if (plainHeld()) {
-			winSeen.scale = Scale();
-			winSeen.quantNode = nullptr;
-		}
-		ofs.prepared(winSeen, toldNotes);
-		snapWork = winSeen.scale.any() ? winSeen.scale : Scale();
+		// The window as I read it this wake: the one arriving, its scale
+		// taken off where I am held plain, and a scale with no note on it
+		// none at all. Asked of the window as it stands, never of a copy.
+		const bool keyed = !plainHeld() && win->scale.any();
+		ofs.prepared(keyed, toldNotes);
+		snapBy(keyed ? &win->scale : nullptr);
 		notesWork = snapWork.any() || toldNotes;
 		// Over a roll or a divider, told by the CV that holds me (`heldMode`),
 		// a role of its own: the chord scaled and moved, or the lines' span
@@ -1268,7 +1290,7 @@ struct Atn : Cartridge, Probe {
 		if (!claimedByReader())
 			return;
 		if (cv.live() || routed.any())
-			ownJack();
+			ownJack(ofsVolts());
 		else {
 			// Left by the router with nothing of my own: my jack as a step
 			// with nothing to process, the offset only while a cable waits on
@@ -1281,9 +1303,9 @@ struct Atn : Cartridge, Probe {
 	}
 	/** My jack as a step of a Seq's block: my own cable, and the router where
 	it is routed to me, at my top, every voice of either, a mono one held
-	across the other's voices as the Seq holds it (`soundVoices`). */
-	void ownJack() {
-		const float shift = ofsVolts();
+	across the other's voices as the Seq holds it (`soundVoices`). `shift`
+	the offset in volts, which the caller has in hand. */
+	void ownJack(float shift) {
 		const int nc = std::max({1, inN(), routed.any() ? routed.n : 0});
 		jackN = nc;
 		outputs[CV_OUTPUT].setChannels(nc);
@@ -1301,7 +1323,7 @@ struct Atn : Cartridge, Probe {
 	/** The same, as though no scale arrived from my left, the bar not yet
 	landed on any keyboard: what a keyboard of the same lane further right
 	lays again on its own keys (`Qnt::shape`). */
-	void shapeAfresh(Mapping& m) override { shapeWith(m, ofsPlayedIn(ofs.unitWork, Scale())); }
+	void shapeAfresh(Mapping& m) override { shapeWith(m, ofsSummed(ofsKnobFor(ofs.unitWork))); }
 	void shapeWith(Mapping& m, float amount) {
 		// The Atn that set the range, for a keyboard of the same lane further
 		// right to lay it again on its own keys (`Qnt::shape`).
@@ -1357,7 +1379,7 @@ struct Atn : Cartridge, Probe {
 		// absent signal is not allowed to become one.
 		const bool arrived = s.present;
 		rangeStage(s, gainWake);
-		const float out = ofs.act(s, winLeft, amount);
+		const float out = ofs.act(s, *winLeft, amount);
 		return arrived ? out : 0.f;
 	}
 	/** The jack, which a Poly or a MIX gathering me takes, so the gate has
@@ -1412,7 +1434,7 @@ struct Atn : Cartridge, Probe {
 			// A step of a Seq's block with a cable of my own, or the Seq's
 			// router: my jack is that at my top, as it would be standing
 			// alone.
-			ownJack();
+			ownJack(shift);
 			return;
 		}
 		jackN = 1;
@@ -1487,10 +1509,9 @@ struct Atn : Cartridge, Probe {
 			Cartridge::sound(sub, sig, col, o);
 			return;
 		}
-		o.window = Mapping();
-		o.signal.setVolts(jackV[0], col, Mapping());
+		o.takeWindow(Sealed::none());
 		o.semis = 12.f * jackV[0];
-		o.note = (int)std::round(o.semis);
+		o.note = wholeOf(o.semis);
 		o.voices = std::max(1, std::min(jackN, (int)PORT_MAX_CHANNELS));
 		for (int c = 1; c < o.voices; c++)
 			o.voice[c] = jackV[c];
@@ -1514,13 +1535,13 @@ struct Atn : Cartridge, Probe {
 	int readerColor() override { return outParse ? outColWork : -1; }
 	/** The window my jack's notes were played in, for an OUT Atn reading me:
 	the one I read them in, while I read notes. */
-	const Mapping* playedOut() override { return outParse && notesWork ? &winLeft : Cartridge::playedOut(); }
+	const Sealed* playedOut() override { return outParse && notesWork ? &winLeft : Cartridge::playedOut(); }
 	/** A note a jack carries, if it is exactly one of the pattern's as the
 	pattern sounds it, its cents and all: `k`, true. A voltage between them is
 	not a note, and is moved as volts (`outEvaluate`). Read from the whole
 	cents once (`tunedOf`), so the test is of integers. */
 	static bool noteOfJack(float v, const Scale& scale, int& k) {
-		const long c = std::lround((double)v * 1200.0);
+		const long c = wholeOf((double)v * 1200.0);
 		const Tuned t = tunedOf(v);
 		// A key detuned by up to 99 cents sounds within a semitone of itself.
 		for (int d : {0, -1, 1}) {
@@ -1545,13 +1566,12 @@ struct Atn : Cartridge, Probe {
 		// (`beforeParse`), and until the parse it asks for has run I read
 		// what the parse gave me.
 		Member* src = stripPoly ? stripPoly : grab;
-		const Mapping* played = src ? src->playedOut() : nullptr;
-		const bool notes = played && played->scale.any() && !played->scale.spread;
-		winLeft = notes ? *played : Mapping();
-		winSeen = winLeft;
-		winIn = winLeft;
-		winOut = Mapping();
-		snapWork = notes ? winLeft.scale : Scale();
+		const Sealed* played = src ? src->playedOut() : nullptr;
+		const bool notes = played && (*played)->scale.any() && !(*played)->scale.spread;
+		winLeft.take(notes ? *played : Sealed::none());
+		winIn.take(winLeft);
+		winOut.take(Sealed::none());
+		snapBy(notes ? &winLeft->scale : nullptr);
 		ofs.unitWork = notes ? OfsCore::UNIT_SEMIS : OfsCore::UNIT_VOLTS;
 		notesWork = notes;
 		modeWork = HELD_UNSAID;
@@ -1608,13 +1628,13 @@ struct Atn : Cartridge, Probe {
 		for (int c = 0; c < n && !stripEmptyWork; c++) {
 			const float v = in[c];
 			int k = 0;
-			if (notes && noteOfJack(v, winLeft.scale, k)) {
+			if (notes && noteOfJack(v, winLeft->scale, k)) {
 				// The gain about C4, landed on the pattern; x1 is the note
 				// itself, an integer untouched.
 				if (gainWake != CV_VOLTS)
-					k = nearestInScale((float)k * gainWake / CV_VOLTS, winLeft.scale);
-				const int moved = shiftAfterSnap(winLeft.scale, k, semis);
-				put(c, held(winLeft.scale.tunedVolts(moved), gainWake, centre));
+					k = nearestInScale((float)k * gainWake / CV_VOLTS, winLeft->scale);
+				const int moved = shiftAfterSnap(winLeft->scale, k, semis);
+				put(c, held(winLeft->scale.tunedVolts(moved), gainWake, centre));
 			}
 			else
 				put(c, scaled(v, gainWake, centre));

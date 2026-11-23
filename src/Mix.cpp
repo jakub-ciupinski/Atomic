@@ -165,10 +165,21 @@ struct Mix : Gatherer<Mix, ROWS, ROWS + 1> {
 	float heard(int c, bool solo) { return open(c, solo) ? level(c) : 0.f; }
 	/** The levels as the engine plays them, gliding to where the hand put
 	them (`Glide`), so a
-	stroke on a bar is no click in the sum. The bars show the levels. I am
-	on the tick for my meters already, so each glide is stepped every
-	sample, one comparison while it stands. */
+	stroke on a bar is no click in the sum. The bars show the levels. On
+	the tick while any glide has somewhere to go, as a CV is for its own: a
+	level, a mute or a solo moved is a param the table finds, which stirs me
+	for that sample's step, and rows arriving or leaving under a solo are a
+	wake, after which the tick is asked afresh. */
 	Glide levelGlide[ROWS + 1];
+	bool wantsTick() override {
+		if (Gatherer::wantsTick())
+			return true;
+		const bool solo = soloing(srcN);
+		for (int c = 0; c <= ROWS; c++)
+			if (!levelGlide[c].rests(heard(c, solo)))
+				return true;
+		return false;
+	}
 	float levelPlayed(int c, bool solo) { return clamp(levelGlide[c].played(heard(c, solo)), 0.f, 1.f); }
 	bool everySample(const ProcessArgs& args) override {
 		const bool land = landing();

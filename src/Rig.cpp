@@ -169,6 +169,29 @@ uint64_t& rigFilesWritten() {
 	static uint64_t n = 0;
 	return n;
 }
+/** A stopwatch over a few named phases, for one INFO line in Rack's log
+when the whole ran past a limit, so a slow load or frame on someone else's
+machine says in its log where the time went. `lap` charges the time since
+the last lap to a phase; the common case costs a clock read a lap. */
+template <int N>
+struct Phases {
+	const char* const (&names)[N];
+	double start, at;
+	double spent[N] = {};
+	explicit Phases(const char* const (&names)[N]) : names(names), start(system::getTime()), at(start) {}
+	void lap(int k) {
+		const double now = system::getTime();
+		spent[k] += now - at;
+		at = now;
+	}
+	double total() const { return at - start; }
+	void log(const std::string& what) const {
+		std::string parts;
+		for (int k = 0; k < N; k++)
+			parts += string::f("%s %s %.1f ms", k ? "," : "", names[k], spent[k] * 1e3);
+		INFO("RIG: %s took %.1f ms:%s", what.c_str(), total() * 1e3, parts.c_str());
+	}
+};
 std::string factoryFolder() { return asset::plugin(pluginInstance, "rigs"); }
 std::string defaultUserFolder() { return asset::user("Atomic/rigs"); }
 std::string settingsPath() { return asset::user("Atomic-rig.json"); }
@@ -201,18 +224,18 @@ std::string userFolder() { return chosenFolder().empty() ? defaultUserFolder() :
 /** A user folder set from the menu that is no longer there: the one state
 drawn red and crossed. The default is never missing, only not made yet. */
 bool userMissing() { return !chosenFolder().empty() && !system::isDirectory(chosenFolder()); }
-/** Whether `path` is `dir` or stands anywhere inside it. A folder not on
-disk holds nothing: its canonical form is empty, which every path would
-otherwise start with, so the user's folder before its first save would claim
+/** `path` in canonical form, for asking whether it stands inside a folder
+(`within`). A folder not on disk holds nothing: its canonical form is
+empty, which every path would otherwise start with, so the user's folder before its first save would claim
 every rig opened from elsewhere. A file not made yet, a save's new name, has
 no canonical form either, nor has a folder a save is about to make, so it is
 placed by the nearest folder above it that is on disk, the names below that
 kept as they are (a dialog's answer is absolute and holds no ".."); placed
 by its own folder alone, a save into a new folder inside the factory's
 would not be found inside it. */
-bool within(const std::string& path, const std::string& dir) {
-	if (path.empty() || dir.empty())
-		return false;
+std::string placedPath(const std::string& path) {
+	if (path.empty())
+		return std::string();
 	std::string p = system::getCanonical(path);
 	std::string rest;
 	for (std::string up = path; p.empty();) {
@@ -225,10 +248,32 @@ bool within(const std::string& path, const std::string& dir) {
 		if (!folder.empty())
 			p = system::join(folder, rest);
 	}
-	const std::string d = system::getCanonical(dir);
+	return p;
+}
+/** Whether the placed path `p` is the canonical folder `d` or stands inside
+it; either empty is outside, a folder not on disk holding nothing. */
+bool inside(const std::string& p, const std::string& d) {
 	if (p.empty() || d.empty())
 		return false;
 	return p == d || (p.size() > d.size() && p.compare(0, d.size(), d) == 0 && (p[d.size()] == '/' || p[d.size()] == '\\'));
+}
+/** Whether `path` is `dir` or stands anywhere inside it. */
+bool within(const std::string& path, const std::string& dir) {
+	return !dir.empty() && inside(placedPath(path), system::getCanonical(dir));
+}
+/** The factory's folder in canonical form, asked of the disk once: it ships
+inside the plugin and never moves while Rack runs, and a RIG asks whether a
+file stands in it often enough that the question must cost no disk call
+(each one a stall on a synced or scanned folder). Asked again only while the
+folder was not found. */
+const std::string& factoryCanonical() {
+	static std::string d;
+	if (d.empty())
+		d = system::getCanonical(factoryFolder());
+	return d;
+}
+bool withinFactory(const std::string& path) {
+	return inside(placedPath(path), factoryCanonical());
 }
 
 /** A path the test rig gave in place of a dialog's answer, taken once
@@ -1196,13 +1241,9 @@ struct RigWidget : MemberWidget {
 	int placeShowing() {
 		if (placeChosen >= 0)
 			return placeChosen;
-		const std::string f = rig ? rig->file : std::string();
-		if (!f.empty()) {
-			if (within(f, factoryFolder()))
-				return FACTORY;
-			if (within(f, userFolder()))
-				return USER;
-			return ELSEWHERE;
+		if (rig && !rig->file.empty()) {
+			knowHeld();
+			return heldAt.inFactory ? FACTORY : heldAt.inUser ? USER : ELSEWHERE;
 		}
 		std::vector<std::string> dirs, files;
 		listFolder(factoryFolder(), dirs, files);
@@ -1216,18 +1257,57 @@ struct RigWidget : MemberWidget {
 			return userFolder();
 		return rig && !rig->file.empty() ? system::getDirectory(rig->file) : userFolder();
 	}
+	/** Where the rig held stands, worked out when the file held or the user
+	folder changes, and again with the places (`refreshPlaces`): which place
+	holds it, and whether it is still on disk. Never a disk call in a frame
+	that changed neither. */
+	struct HeldPlace {
+		std::string file, user;
+		bool inFactory = false, inUser = false, exists = false;
+	} heldAt;
+	void knowHeld(bool again = false) {
+		const std::string f = rig ? rig->file : std::string();
+		const std::string u = userFolder();
+		if (!again && f == heldAt.file && u == heldAt.user)
+			return;
+		heldAt.file = f;
+		heldAt.user = u;
+		const std::string p = placedPath(f);
+		heldAt.inFactory = inside(p, factoryCanonical());
+		heldAt.inUser = !heldAt.inFactory && !u.empty() && inside(p, system::getCanonical(u));
+		heldAt.exists = !f.empty() && system::exists(f);
+	}
 	/** The icons lit and crossed and the arrows able, as the place showing and
-	the folders on disk say: asked a few times a second, and at once after
-	anything here that moves the place (`placesDirty`). */
+	the folders on disk say: at once after anything here that can move them, a
+	load, a save, a place or a folder chosen, a menu opened (`placesDirty`),
+	and otherwise every `PLACES_EVERY` seconds, which is how a rig added in
+	the system's file browser comes into the arrows' walk; a file held or a
+	user folder that is not the one they were taken for, an undo's or another
+	RIG's, at once too. The walk is the whole place, folder after folder, so
+	it is never taken in every frame: on a synced or scanned folder every
+	disk call can stall. */
+	static constexpr double PLACES_EVERY = 2.0;
 	bool placesDirty = true;
+	double placesAt = 0.0;
+	std::string placesFile, placesUser; // the file held and the user folder they were taken for
+	bool placesStale() {
+		return placesDirty || (rig ? rig->file : std::string()) != placesFile || userFolder() != placesUser ||
+		       system::getTime() - placesAt >= PLACES_EVERY;
+	}
 	void refreshPlaces() {
+		placesDirty = false;
+		knowHeld(true);
+		placesFile = heldAt.file;
+		placesUser = heldAt.user;
 		const int showing = placeShowing();
 		const bool gone = userMissing();
 		for (int k = 0; k < 2; k++)
 			placeLit[k] = showing == (k ? USER : FACTORY);
 		userGone = gone;
+		const std::vector<std::string> files = stepFiles();
 		for (int k = 0; k < 2; k++)
-			canStep[k] = !stepTarget(k ? 1 : -1).empty();
+			canStep[k] = !stepTarget(files, k ? 1 : -1).empty();
+		placesAt = system::getTime();
 	}
 	/** An icon's click: that place shown, for the arrows and the menu. */
 	void showPlace(int place) {
@@ -1254,7 +1334,9 @@ struct RigWidget : MemberWidget {
 	/** The rig an arrow would load: the next or the previous in the place,
 	round and round, or nothing where the only rig is the one held. */
 	std::string stepTarget(int by) {
-		const std::vector<std::string> files = stepFiles();
+		return stepTarget(stepFiles(), by);
+	}
+	std::string stepTarget(const std::vector<std::string>& files, int by) {
 		if (files.empty())
 			return std::string();
 		const int n = (int)files.size();
@@ -1519,7 +1601,7 @@ struct RigWidget : MemberWidget {
 	bool writeTo(std::string path) {
 		if (string::lowercase(system::getExtension(path)) != std::string(".") + RIG_EXT)
 			path += std::string(".") + RIG_EXT;
-		if (within(path, factoryFolder())) {
+		if (withinFactory(path)) {
 			WARN("RIG: %s is in the factory's folder, which a RIG never writes", path.c_str());
 			return false;
 		}
@@ -1557,15 +1639,19 @@ struct RigWidget : MemberWidget {
 	void save() {
 		if (!rig)
 			return;
+		knowHeld(true);
 		if (Hand::held(G_RIG_OVERWRITE) && overwritable())
 			saveAs(system::getDirectory(rig->file), system::getFilename(rig->file));
 		else
 			saveAs();
 	}
 	/** Whether SAVE with shift has a file to open on: one the rig came from
-	that is still there and not the factory's. */
+	that is still there and not the factory's, as last looked (`knowHeld`). */
 	bool overwritable() {
-		return rig && !rig->file.empty() && !within(rig->file, factoryFolder()) && system::exists(rig->file);
+		if (!rig || rig->file.empty())
+			return false;
+		knowHeld();
+		return !heldAt.inFactory && heldAt.exists;
 	}
 	/** A name for a new save in `dir`: the rig held's, where `dir` has no rig
 	of that name, else numbered on past any taken. */
@@ -1613,7 +1699,7 @@ struct RigWidget : MemberWidget {
 			path = pathC;
 			std::free(pathC);
 		}
-		if (within(path, factoryFolder())) {
+		if (withinFactory(path)) {
 			WARN("RIG: refused a save into the factory's folder, %s", path.c_str());
 			if (asked)
 				osdialog_message(OSDIALOG_WARNING, OSDIALOG_OK,
@@ -1636,7 +1722,7 @@ struct RigWidget : MemberWidget {
 			path = pathC;
 			std::free(pathC);
 		}
-		if (within(path, factoryFolder())) {
+		if (withinFactory(path)) {
 			WARN("RIG: the factory's folder cannot be the user folder");
 			return;
 		}
@@ -1650,6 +1736,7 @@ struct RigWidget : MemberWidget {
 	void nameMenu() {
 		if (!rig)
 			return;
+		placesDirty = true;
 		const int place = placeShowing();
 		const std::string dir = placeFolder(place);
 		ui::Menu* menu = createMenu();
@@ -1693,6 +1780,11 @@ struct RigWidget : MemberWidget {
 	void load(const std::string& path) {
 		if (!rig)
 			return;
+		// Where a load's time goes, logged when it runs long; the engine's
+		// addModule apart, since its time is a wait on the engine's lock.
+		enum { READ, REMOVE, BUILD, ENGINE, CABLES, STATE };
+		static const char* const phaseNames[] = {"reading", "removing", "modules", "addModule (engine lock)", "cables", "setState"};
+		Phases<6> t(phaseNames);
 		json_error_t err;
 		json_t* rootJ = loadJson(path, &err);
 		if (!rootJ) {
@@ -1700,12 +1792,14 @@ struct RigWidget : MemberWidget {
 			return;
 		}
 		RackWidget* rack = APP->scene->rack;
+		t.lap(READ);
 		history::ComplexAction* h = new history::ComplexAction;
 		h->name = "load rig";
 		json_t* oldJ = rig->stateJson();
 
 		for (ModuleWidget* mw : molecule())
 			removeWithHistory(h, mw);
+		t.lap(REMOVE);
 
 		const std::vector<json_t*> ms = fileModules(rootJ);
 		const std::set<int64_t> named = namedIds(ms);
@@ -1746,7 +1840,9 @@ struct RigWidget : MemberWidget {
 			}
 			sceneIntoSettings(m, valuesJ);
 			json_decref(copyJ);
+			t.lap(BUILD);
 			APP->engine->addModule(m);
+			t.lap(ENGINE);
 			ModuleWidget* nw = model->createModuleWidget(m);
 			rack->addModule(nw);
 			rack->setModulePosForce(nw, Vec(x, box.pos.y));
@@ -1755,6 +1851,7 @@ struct RigWidget : MemberWidget {
 				ids[fileId] = m->id;
 			added.push_back(nw);
 		}
+		t.lap(BUILD);
 		pushMoves(h, was);
 		for (ModuleWidget* nw : added) {
 			history::ModuleAdd* came = new history::ModuleAdd;
@@ -1803,6 +1900,7 @@ struct RigWidget : MemberWidget {
 			ca->setCable(cw);
 			h->push(ca);
 		}
+		t.lap(CABLES);
 
 		// The scenes, their ids turned into the new modules', the file, and
 		// the rig's note, none where the file has none.
@@ -1826,6 +1924,9 @@ struct RigWidget : MemberWidget {
 		placeChosen = -1;
 		placesDirty = true;
 		resetGroundMarks();
+		t.lap(STATE);
+		if (t.total() > 0.25)
+			t.log(string::f("loading %s (%d modules)", system::getFilename(path).c_str(), (int)added.size()));
 	}
 
 	/** The folder as Rack's own menus: its rigs, the one held ticked, and
@@ -1847,6 +1948,7 @@ struct RigWidget : MemberWidget {
 	void appendContextMenu(ui::Menu* menu) override {
 		if (!rig)
 			return;
+		placesDirty = true;
 		menu->addChild(new ui::MenuSeparator);
 		// Where VCV Rack has a convention the menu follows it: a plugin's
 		// folder opened in the system's file browser, a folder set through the
@@ -1886,7 +1988,14 @@ struct RigWidget : MemberWidget {
 		MemberWidget::appendContextMenu(menu);
 	}
 
+	/** When a step last wrote its slow line, so a run of slow frames writes
+	one a second at most. */
+	double slowStepLogged = -1.0;
 	void step() override {
+		// Where a frame's time goes, logged when one runs long.
+		enum { PLACES, FILE, WORDS, CHILDREN };
+		static const char* const phaseNames[] = {"places", "file", "words and scenes", "children"};
+		Phases<4> t(phaseNames);
 		if (noteOpen && noteOpen->take && rig && noteOpen->id == rig->id) {
 			noteOpen->take = false;
 			APP->event->setSelectedWidget(noteOpen->field);
@@ -1899,14 +2008,15 @@ struct RigWidget : MemberWidget {
 					rig->live.insert(o->module->id);
 			rig->liveKnown = true;
 			rig->sceneRGB.store(cableColorOn(getInput(Rig::SCENE_INPUT)), std::memory_order_relaxed);
-			// A place shown, a rig loaded or saved, at once.
-			if (placesDirty) {
-				placesDirty = false;
+			// A place shown, a rig loaded or saved, at once; else now and
+			// then, the disk being read.
+			if (placesStale())
 				refreshPlaces();
-			}
+			t.lap(PLACES);
 			// The molecule against the file, every frame, the file itself read
 			// only where the RIG does not know what it holds.
 			saveDiffers = saveWanted();
+			t.lap(FILE);
 			// Every control's words for the state on screen (Words.hpp): SAVE
 			// what a click does now, shift held or not, its shift-click only
 			// where there is a file of the user's to overwrite; a part with
@@ -1952,19 +2062,18 @@ struct RigWidget : MemberWidget {
 			// molecule rather than one up to six frames old, so what a frame
 			// draws does not hang on how many frames came before it.
 			sceneDiffers = rig->sceneCount() > 0 && rig->differs(moleculeModules());
-			// Whether the folder is still there, a few times a second, the
-			// disk being read.
-			if (++differCount >= 6) {
-				differCount = 0;
-				refreshPlaces();
-			}
 		}
+		t.lap(WORDS);
 		MemberWidget::step();
+		t.lap(CHILDREN);
+		if (t.total() > 0.05 && (slowStepLogged < 0.0 || t.at - slowStepLogged >= 1.0)) {
+			slowStepLogged = t.at;
+			t.log("a frame's step");
+		}
 	}
 
 	bool placeLit[2] = {}; // the factory's icon and the user's, lit as `refreshPlaces` says
 	bool userGone = false;  // the user's folder set and gone, likewise
-	int differCount = 0;
 	bool sceneDiffers = false; // the molecule is not the scene showing: REPLACE breathes
 	bool lone = false;         // nothing of ours to my right: INSERT and SAVE have nothing to keep, and go faint
 	bool rigSeqs = false;      // a SEQ stands to my right, which a recall restarts: the lessons say so only then

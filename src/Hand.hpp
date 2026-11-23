@@ -500,13 +500,13 @@ struct VerticalDragParam : ParamWidget, Stroke, ResetSpends {
 		float lo, hi;
 		span(pq, lo, hi);
 		const float from = clamp(pq->getValue(), lo, hi);
-		const int whole = (int)std::round(u);
+		const int whole = wholeOf(u);
 		if ((float)whole == u) {
 			// A unit that is a count steps as integers, exact where the
 			// thing is exact, so a value off the unit's grid, a
 			// transpose of 4 under a shift stepping by sevens, lands on the
 			// next line of it, 7, and never skips one.
-			landStep(pq, (float)gridStep((int)std::round(from), whole, -(int)took, (int)std::ceil(lo), (int)std::floor(hi)), lo, hi);
+			landStep(pq, (float)gridStep(wholeOf(from), whole, -(int)took, (int)std::ceil(lo), (int)std::floor(hi)), lo, hi);
 			return;
 		}
 		landStep(pq, std::round((from - took * u) / u) * u, lo, hi);
@@ -770,7 +770,7 @@ struct EdgeLampParam : Hovered<VerticalDragParam>, DarkFace {
 		float to;
 		if (fineHeld) {
 			// In fiftieths, a count, so a whole place stays whole.
-			const long at = lit() ? std::lround(from * FINE_PACE) : std::lround(lo * FINE_PACE) - 1;
+			const long at = lit() ? wholeOf(from * FINE_PACE) : wholeOf(lo * FINE_PACE) - 1;
 			to = (float)(at - (long)took) / FINE_PACE;
 		}
 		else {

@@ -88,7 +88,7 @@ struct Trg : Cartridge, Probe {
 	static int ringParam(int r) { return RING_PARAM + r; }
 	/** How many rings this Trg has, one to sixteen, eight unless a stroke
 	with shift held said otherwise. */
-	int rings() { return clamp((int)std::round(params[LEN_PARAM].getValue()), 1, TRG_RINGS); }
+	int rings() { return clamp(wholeOf(params[LEN_PARAM].getValue()), 1, TRG_RINGS); }
 
 	/** What this Trg is right now: a reader reading it makes it a member
 	of that reader's block, and nothing reading it leaves it alone, the one
@@ -620,7 +620,7 @@ struct Trg : Cartridge, Probe {
 	wake's `publishJack` keeps them high. The bloom is a measurement made
 	outside any wake, so it is stored where it is made. */
 	void tickPulses(const ProcessArgs& args) {
-		const int asked = pulseAsk.exchange(0, std::memory_order_relaxed);
+		const int asked = taken(pulseAsk, 0);
 		const int n = rings();
 		Output& out = outputs[GATE_OUTPUT];
 		if (asked && pulsing())
@@ -665,7 +665,7 @@ struct Trg : Cartridge, Probe {
 		if (ring < 0 || ring >= TRG_RINGS)
 			return;
 		params[ringParam(ring)].setValue(on ? 1.f : 0.f);
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 
 
@@ -701,7 +701,7 @@ struct Trg : Cartridge, Probe {
 	publish and put down there, never in the clear: a field of my own wake
 	that a clear zeroed would be moved by a wake that left me out. */
 	int roseWork = 0;
-	void prepare(const Mapping& win, const ProcessArgs& args) override {
+	void prepare(const Sealed& win, const ProcessArgs& args) override {
 		ringInWork = ringsIn();
 		// A trigger on a ring's own cable is a press of the ring: toggling, it flips the ring,
 		// written for itself as a REC take writes (`writeGate`), the pattern
@@ -778,8 +778,7 @@ struct Trg : Cartridge, Probe {
 		const int m = maskWork;
 		o.mask = sub < 0 ? m : (m >> sub) & 1;
 		o.value = sub;
-		o.signal = sig;
-		o.window = winIn;
+		o.takeWindow(winIn);
 	}
 	/** A value taken into ring `sub`, or every ring from a channel each when
 	`sub` is -1: lit when the channel is at the threshold or above, or turned
@@ -1356,7 +1355,7 @@ struct TrgRing : ParamWidget, CellPaint<TrgRing>, Stroke, DarkFace {
 		/** The pointer moved `dy` rack pixels down. */
 		void move(float dy) {
 			travel -= dy;
-			const int raw = (int)std::lround(from + travel / per());
+			const int raw = wholeOf(from + travel / per());
 			const int n = clamp(raw, floor, TRG_RINGS);
 			if (raw != n)
 				travel = (n - from) * per();

@@ -81,7 +81,7 @@ struct Glide {
 	or onto it at once where `land` says a RIG has just recalled it
 	(`Member::landing`). Returns whether what it plays moved. */
 	bool step(float setting, float sampleRate, int64_t frame, bool land = false) {
-		if (left == 0 && setting == aim)
+		if (rests(setting))
 			return false;
 		if (left < 0 || sampleRate != rate || land) {
 			// The first setting, a new sample rate or a recall: stood on at
@@ -105,6 +105,10 @@ struct Glide {
 	}
 	/** Whether it is on its way and wants the next sample. */
 	bool moving() const { return left > 0; }
+	/** Whether a step toward `setting` would do nothing, the test `step`
+	opens with: an owner whose glides all rest needs no sample of its own
+	until a setting moves, which stirs it. */
+	bool rests(float setting) const { return left == 0 && setting == aim; }
 	/** What the engine plays: where the glide stands, or `setting` itself
 	before the first step, so a wake ahead of the first sample still plays
 	the setting and never nought. */
@@ -127,9 +131,9 @@ private:
 	int framesFor(float setting, int64_t pause, float sampleRate) const {
 		const double sr = sampleRate;
 		if (std::fabs((double)setting - (double)aim) >= (double)jumpAt)
-			return std::max(1, (int)std::lround(SNAP_SECONDS * sr));
-		const int64_t shortest = std::max(1, (int)std::lround(SECONDS * sr));
-		const int64_t longest = std::max(shortest, (int64_t)std::lround(LONGEST * sr));
+			return std::max(1, wholeOf(SNAP_SECONDS * sr));
+		const int64_t shortest = std::max(1, wholeOf(SECONDS * sr));
+		const int64_t longest = std::max(shortest, (int64_t)wholeOf(LONGEST * sr));
 		return (int)(pause > longest ? shortest : std::max(shortest, pause));
 	}
 	/** The frames left, `glidesUnderway` told when the glide sets off or lands. */

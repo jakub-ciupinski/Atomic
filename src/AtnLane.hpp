@@ -66,7 +66,7 @@ struct AtnLane : LevelParam {
 		float lo, hi;
 		spanOf(gainVolts(), lo, hi);
 		const float off = offVolts();
-		const int reach = std::max(std::abs((int)std::round((off + lo) * 12.f)), std::abs((int)std::round((off + hi) * 12.f)));
+		const int reach = std::max(std::abs(wholeOf((off + lo) * 12.f)), std::abs(wholeOf((off + hi) * 12.f)));
 		return clamp((reach + 11) / 12, edge / 2, edge);
 	}
 	/** The scale the glass is drawn on, settled once a frame and held while
@@ -238,7 +238,7 @@ struct AtnLane : LevelParam {
 		// never `ofsVolts`, which reads the wake's own working fields
 		// (`ofs.unitWork`, `snapWork`, `winLeft`), plain fields the UI thread
 		// must not read.
-		const int ofsSemis = r ? (int)std::round(r->ofsAmount() * (float)OfsCore::SEMI_REACH) : 0;
+		const int ofsSemis = r ? wholeOf(r->ofsAmount() * (float)OfsCore::SEMI_REACH) : 0;
 		return spanEndsOnScale(semis, scale, ofsSemis);
 	}
 	/** A stroke on a span of notes goes by how far the pointer has moved
@@ -251,7 +251,7 @@ struct AtnLane : LevelParam {
 		takeHold(y, now, h);
 		heldRelative = true;
 		const float volts = (heldY - y) / (half() / scaleVolts());
-		const int held = (int)std::round(heldSemis);
+		const int held = wholeOf(heldSemis);
 		int semis = held;
 		if (h == HAND_COARSE) {
 			const int steps = (int)std::trunc(2.f * volts);
@@ -267,7 +267,7 @@ struct AtnLane : LevelParam {
 			// the hand, searched outward from it.
 			Atn* r = getAtn();
 			const Scale scale = r ? r->snapScale.load() : Scale();
-			const int want = held + (int)std::round(24.f * volts);
+			const int want = held + wholeOf(24.f * volts);
 			semis = want;
 			for (int d = 0; d < 24 && scale.any(); d++) {
 				if (spanEndOnScale(want + d, scale)) {
@@ -320,11 +320,11 @@ struct AtnLane : LevelParam {
 				// cent under command, each a count once taken from the travel.
 				const int reach = OfsCore::SEMI_REACH;
 				if (h == HAND_COARSE)
-					a = (float)(12 * (int)std::round(a * (float)(reach / 12))) / (float)reach;
+					a = (float)(12 * wholeOf(a * (float)(reach / 12))) / (float)reach;
 				else if (fineHand(h))
-					a = (float)(int)std::round(a * (float)(reach * 100)) / (float)(reach * 100);
+					a = (float)wholeOf(a * (float)(reach * 100)) / (float)(reach * 100);
 				else
-					a = (float)(int)std::round(a * (float)reach) / (float)reach;
+					a = (float)wholeOf(a * (float)reach) / (float)reach;
 			}
 			else if (u == OfsCore::UNIT_SEMIS) {
 				// A count of semitones, whole from here on. A transposition
@@ -336,15 +336,15 @@ struct AtnLane : LevelParam {
 				// lands the bar on.
 				const Scale scale = r ? r->spanScale() : Scale();
 				const int reach = OfsCore::SEMI_REACH;
-				int semis = h == HAND_COARSE ? 12 * (int)std::round(a * (float)(reach / 12))
-				                             : (int)std::round(a * (float)reach);
+				int semis = h == HAND_COARSE ? 12 * wholeOf(a * (float)(reach / 12))
+				                             : wholeOf(a * (float)reach);
 				if (h != HAND_COARSE && scale.any())
 					semis = shiftOnScale(semis, scale);
 				a = (float)semis / (float)reach;
 			}
 			else if (h == HAND_COARSE) {
 				// Whole volts, rounded once from the travel.
-				const int volts = (int)std::round(a * (float)OfsCore::MAX_VOLTS);
+				const int volts = wholeOf(a * (float)OfsCore::MAX_VOLTS);
 				a = (float)volts / (float)OfsCore::MAX_VOLTS;
 			}
 			pq->setValue(clamp(a, -1.f, 1.f));
@@ -357,7 +357,7 @@ struct AtnLane : LevelParam {
 			const float pace = paceOf(h);
 			float volts = boostFrom + (boostY - y) / half() * CV_VOLTS * pace;
 			if (h == HAND_COARSE)
-				volts = (float)(int)std::round(volts);
+				volts = (float)wholeOf(volts);
 			pq->setValue(clamp(volts, -GAIN_MAX, GAIN_MAX));
 		}
 		else if (boostStroke == strokeNo() && !fineHand(h) &&
@@ -367,13 +367,13 @@ struct AtnLane : LevelParam {
 			const float over = (boostFrom > 0.f ? (mid() - y) : (y - mid())) / half() - 1.f;
 			float volts = (boostFrom > 0.f ? 1.f : -1.f) * CV_VOLTS * (1.f + over);
 			if (h == HAND_COARSE)
-				volts = (float)(int)std::round(volts);
+				volts = (float)wholeOf(volts);
 			pq->setValue(clamp(volts, -GAIN_MAX, GAIN_MAX));
 		}
 		else {
 			float volts = strokeTravel(y, pq->getValue() / CV_VOLTS, h) * CV_VOLTS;
 			if (h == HAND_COARSE)
-				volts = (float)(int)std::round(volts);
+				volts = (float)wholeOf(volts);
 			pq->setValue(clamp(volts, -CV_VOLTS, CV_VOLTS));
 		}
 		rig::Hand::readout(this, fineHand(h) ? pq->getDisplayValueString() + pq->getUnit() : std::string());
@@ -413,7 +413,7 @@ struct AtnLane : LevelParam {
 		}
 		const float v = value;
 		if (notesSpan())
-			return string::f("%d", (int)std::round(clamp(v, -CV_VOLTS, CV_VOLTS) * 12.f)); // the span, in semitones, x1 at most as the rig takes it
+			return string::f("%d", wholeOf(clamp(v, -CV_VOLTS, CV_VOLTS) * 12.f)); // the span, in semitones, x1 at most as the rig takes it
 		return decimals(v / CV_VOLTS, 2, 3);
 	}
 	/** A reading as three seven-segment cells, the way a small screen of

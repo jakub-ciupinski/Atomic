@@ -468,8 +468,8 @@ inline int atomImage(NVGcontext* vg) {
 				}
 			const float a = (float)hits / (SS * SS);
 			unsigned char* q = &px[((size_t)j * N + i) * 4];
-			q[0] = q[1] = q[2] = (unsigned char) std::lround(ink * a * 255.f); // premultiplied
-			q[3] = (unsigned char) std::lround(a * 255.f);
+			q[0] = q[1] = q[2] = (unsigned char) wholeOf(ink * a * 255.f); // premultiplied
+			q[3] = (unsigned char) wholeOf(a * 255.f);
 		}
 	img = nvgCreateImageRGBA(vg, N, N, NVG_IMAGE_GENERATE_MIPMAPS | NVG_IMAGE_PREMULTIPLIED, px.data());
 	return img;
@@ -813,8 +813,8 @@ inline NVGcolor plateAt(float y) {
 	const NVGcolor a = PLATE_TOP, b = PLATE_FOOT;
 	// Channel by channel, in whole units, since the dark top is not a grey.
 	auto at = [&](float p, float q) {
-		const int u = (int)std::lround(p * 255.f), v = (int)std::lround(q * 255.f);
-		return (int)std::round(u + (v - u) * t);
+		const int u = wholeOf(p * 255.f), v = wholeOf(q * 255.f);
+		return wholeOf(u + (v - u) * t);
 	};
 	return nvgRGB(at(a.r, b.r), at(a.g, b.g), at(a.b, b.b));
 }
@@ -927,7 +927,7 @@ inline LineBand lineBand(NVGcontext* vg, float y, float th) {
 	if (s <= 0.f)
 		return {y - th / 2.f, th};
 	// A count of device pixels, an integer from the one place it is made.
-	const int n = std::max(1, (int)std::lround(s * th));
+	const int n = std::max(1, wholeOf(s * th));
 	const float top = std::round(s * y + t - 0.5f * (float)n);
 	return {(top - t) / s, (float)n / s};
 }
@@ -946,9 +946,9 @@ inline void paintGroundShadow(NVGcontext* vg, Rect r, float panelY = -1.f) {
 	const NVGcolor plate = plateAt((panelY >= 0.f ? panelY : r.pos.y) - lip / 2.f);
 	nvgBeginPath(vg);
 	nvgRect(vg, r.pos.x, r.pos.y - lip, r.size.x, lip);
-	nvgFillColor(vg, nvgRGB((int)std::round(plate.r * 255.f * (1.f - GROUND_SHADOW_A)),
-	                        (int)std::round(plate.g * 255.f * (1.f - GROUND_SHADOW_A)),
-	                        (int)std::round(plate.b * 255.f * (1.f - GROUND_SHADOW_A))));
+	nvgFillColor(vg, nvgRGB(wholeOf(plate.r * 255.f * (1.f - GROUND_SHADOW_A)),
+	                        wholeOf(plate.g * 255.f * (1.f - GROUND_SHADOW_A)),
+	                        wholeOf(plate.b * 255.f * (1.f - GROUND_SHADOW_A))));
 	nvgFill(vg);
 }
 

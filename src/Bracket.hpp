@@ -504,7 +504,7 @@ struct BracketReset : Widget, HintSource {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && resettable() && over(e.pos)) {
 			if (e.action == GLFW_PRESS) {
 				for (Member* m : rigModules()) {
-					m->resetAsked.store(true, std::memory_order_relaxed);
+					m->askReset();
 					m->wake();
 					pressedAt = frameNow();
 				}
@@ -1177,33 +1177,22 @@ neighbour's lit layer lies over it. */
 struct HintSettings {
 	bool bracket = true;
 };
-inline std::string hintSettingsPath() { return asset::user("Atomic.json"); }
 inline HintSettings& hintSettings() {
 	static HintSettings s;
 	static bool read = false;
 	if (!read) {
 		read = true;
-		if (json_t* rootJ = loadJson(hintSettingsPath())) {
-			if (json_t* j = json_object_get(rootJ, "hintBracket"))
-				s.bracket = json_is_true(j);
-			json_decref(rootJ);
+		if (json_t* j = loadSetting("hintBracket")) {
+			s.bracket = json_is_true(j);
+			json_decref(j);
 		}
 	}
 	return s;
 }
 inline void saveHintSettings() {
-	const HintSettings& s = hintSettings();
-	json_t* rootJ = loadJson(hintSettingsPath());
-	if (!rootJ || !json_is_object(rootJ)) {
-		if (rootJ)
-			json_decref(rootJ);
-		rootJ = json_object();
-	}
-	json_object_set_new(rootJ, "hintBracket", json_boolean(s.bracket));
-	json_object_del(rootJ, "hintStrip"); // the CRV screens' switch, which is gone
-	json_object_del(rootJ, "hintRail");  // the same switch under the strip's old name
-	saveJson(rootJ, hintSettingsPath(), JSON_INDENT(2));
-	json_decref(rootJ);
+	// hintStrip was the CRV screens' switch, which is gone; hintRail the same
+	// switch under the strip's old name.
+	saveSetting("hintBracket", json_boolean(hintSettings().bracket), {"hintStrip", "hintRail"});
 }
 /** Atomic Help, the one submenu at the foot of every module's menu, the same
 on each, under the module's own items, built here alone. Its first item is

@@ -27,7 +27,16 @@ its end to its start, the last and the first included, so the light bounces
 off the ends rather than leaving the last stretch for the one before it and
 jumping. A cycle of it is every step there and every step back, twice the
 steps. */
-inline int64_t wrapPlace(int64_t k, int64_t m) { return ((k % m) + m) % m; }
+
+/** A place `k` within a cycle of `m` places, `m` above nought: the remainder,
+and a cycle more where it is below nought. One division, not the two of
+`((k % m) + m) % m`, the same number: a Seq's wake asks this four times
+walking forward and seven on a pendulum, more under a turn, and a 64-bit
+division is the slowest thing an integer does. */
+inline int64_t wrapPlace(int64_t k, int64_t m) {
+	const int64_t r = k % m;
+	return r < 0 ? r + m : r;
+}
 /** The whole places walked from place `from`, `fromAlong` through it, to
 place `to`, `toAlong` through it, the shorter way round a cycle of `cycle`
 places: a place PHASE turned is known only round the cycle, so the two ways

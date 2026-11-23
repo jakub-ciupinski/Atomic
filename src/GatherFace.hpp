@@ -177,7 +177,7 @@ struct GatherStrip : ScreenButton, Stroke {
 	GatherReads* reads() { return dynamic_cast<GatherReads*>(module); }
 	int code() {
 		engine::ParamQuantity* pq = getParamQuantity();
-		return pq ? (int)std::lround(pq->getValue()) : 0;
+		return pq ? wholeOf(pq->getValue()) : 0;
 	}
 	std::string word() {
 		GatherReads* g = reads();
@@ -286,7 +286,7 @@ struct GatherStrip : ScreenButton, Stroke {
 		if (e.button != GLFW_MOUSE_BUTTON_LEFT || !module || strokeCycle.empty())
 			return;
 		accum += strokeDelta(e);
-		const int took = (int)std::round(accum / PX_PER_CHOICE);
+		const int took = wholeOf(accum / PX_PER_CHOICE);
 		if (took == 0)
 			return;
 		accum -= took * PX_PER_CHOICE;
@@ -351,7 +351,7 @@ sentence's words, and says its stroke on the hint (`retipChoice`). */
 struct ChoiceQuantity : HintQuantity {
 	std::string getDisplayValueString() override {
 		GatherReads* g = dynamic_cast<GatherReads*>(module);
-		return choiceName(Choice::of((int)std::lround(getValue())), g ? relaxed(g->gatheredNow) : -1);
+		return choiceName(Choice::of(wholeOf(getValue())), g ? relaxed(g->gatheredNow) : -1);
 	}
 };
 /** The strip's param on a gatherer, every choice a whole one, named in
@@ -388,7 +388,7 @@ inline GatheredBy gatheredBy(ModuleWidget* me) {
 			if (relaxed(g->srcIdNow[r]) == id) {
 				by.kind = m->manifestId();
 				by.channel = g->outChannel(r);
-				by.nearest = std::lround(m->params[g->choiceParam()].getValue()) == 0;
+				by.nearest = wholeOf(m->params[g->choiceParam()].getValue()) == 0;
 				return by;
 			}
 	}

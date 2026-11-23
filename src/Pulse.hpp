@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include "Whole.hpp"
 
 /** How long things last: a trigger on a cable, and a transient on a screen.
 
@@ -42,7 +43,7 @@ const int TRIG_MS = 1;
 rounded up, since Rack's rates are whole hertz: 45 samples at 44.1 kHz,
 never 44, which stops short of it. */
 inline int64_t pulseFrames(float sampleRate) {
-	const int64_t hz = (int64_t)std::lround(sampleRate);
+	const int64_t hz = (int64_t)wholeOf(sampleRate);
 	return (hz * TRIG_MS + 999) / 1000;
 }
 
@@ -116,6 +117,14 @@ struct Held {
 		mark = caught = 0.f;
 		any = false;
 	}
+	/** Whether a look at `now` would leave everything as it is, bit for bit:
+	nothing seen since the last, and the mark standing on `now`, within the
+	span, where a look takes `now` as it is. So an owner may skip the looks
+	for as long as this holds and nothing is seen. Bits, not values: a nought
+	of the other sign is another mark to a screen's packed word. */
+	bool rests(float now, float span) const {
+		return !any && std::fabs(now) <= span && std::memcmp(&mark, &now, sizeof now) == 0;
+	}
 };
 
 /** A screen's hold on a signal that swings both ways, a bar of a Poly or a
@@ -152,6 +161,9 @@ struct HeldSpan {
 	void rest() {
 		up.rest();
 		down.rest();
+	}
+	bool rests(float now, float span) const {
+		return up.rests(std::max(now, 0.f), span) && down.rests(std::min(now, 0.f), span);
 	}
 };
 /** A `HeldSpan::packed` word unpacked: the foot, at or below nought, and

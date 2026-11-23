@@ -192,13 +192,20 @@ struct PhaseUp4 {
 	}
 	/** Whether the points are the newest volts, every one. */
 	bool settled() const { return same >= K; }
+	/** A step between two samples taken the shorter way round, ten volts
+	being a whole turn: its remainder. A step of half a turn or less is its
+	own remainder bit for bit, the turns in it rounding to none and nothing
+	taken off, the sign of a nought kept, and nearly every step is one; so
+	only a step past half a turn asks the library, whose remainder is the
+	slowest thing in the frame where it is the x87's, as on Windows. */
+	static double shorterWay(double step) { return std::fabs(step) <= 5.0 ? step : std::remainder(step, 10.0); }
 	/** The four points of the frame heard last, oldest first. */
 	void points(double* out) const {
 		double u[K];
 		u[0] = 0.0;
 		for (int k = 1; k < K; k++) {
 			const double newer = ring[(pos - k + 1 + K) % K], older = ring[(pos - k + K) % K];
-			u[k] = u[k - 1] - std::remainder(newer - older, 10.0);
+			u[k] = u[k - 1] - shorterWay(newer - older);
 		}
 		for (int j = 0; j < 4; j++) {
 			double o = 0.0;

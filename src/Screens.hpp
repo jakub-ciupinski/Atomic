@@ -187,7 +187,7 @@ struct ScreenButton : Hovered<ParamWidget> {
 			const bool tall = box.size.y > box.size.x;
 			const float len = tall ? box.size.y : box.size.x;
 			const float across = tall ? box.size.x : box.size.y;
-			const int leds = std::max(1, (int)std::round(len / mm2px(11.f)));
+			const int leds = std::max(1, wholeOf(len / mm2px(11.f)));
 			const float pitch = len / leds;
 			// The light stays inside the face: the same rounded rectangle the
 			// face itself is, so a lit button is a lit button and not a

@@ -35,8 +35,9 @@ header to include anywhere else. */
 			                : sig.present ? in.getVoice(c)
 			                              : m->cv.getVoice(c);
 			Signal s;
-			s.setVolts(v, color, Mapping());
-			Sound o;
+			s.setVolts(v, color, *Sealed::none());
+			Sound& o = voiceSound;
+			o.fresh();
 			m->sound(sub, s, color, o);
 			snd.voice[c] = o.lineVolts();
 			if (qf && o.band != NO_BAND)
@@ -45,16 +46,23 @@ header to include anywhere else. */
 				qf->light(o.note, color);
 		}
 	}
+	/** The Sounds I sound into, kept and made fresh before each use
+	(`Sound::fresh`): the step's, a voice's past the first, and the step a
+	crossfade leaves behind (`soundOf`), three since a voice is sounded
+	inside either of the others. */
+	Sound stepSound, voiceSound, leftSound;
 	/** What the playhead sounds where it stands: the IN jack handed to
 	the member stood on, the member's sound, and the notes lit on the Qnt it
-	went through. */
-	Sound soundStep(const ThisWake& w, const ProcessArgs& args) {
+	went through. The step's Sound, mine, good until the next step. */
+	const Sound& soundStep(const ThisWake& w, const ProcessArgs& args) {
 		const bool alone = w.alone, gates = w.gates, wide = w.wide, poly = w.poly;
 		// The IN jack, normalled to the IN jack of the member the playhead
 		// stands on: a member that transforms gets it as the signal it
 		// transforms; a member that holds takes it as the step lands, and so
-		// does my own memory. It is the only signal a member is ever handed.
-		Signal sig;
+		// does my own memory. It is the only signal a member is ever handed,
+		// and made only where there is one: most steps hand nothing.
+		static const Signal silent;
+		std::optional<Signal> handed;
 		const bool transforms = !alone && (chain[0]->traits & tree::T_STAGE);
 		// A block of Atns holds nothing, a lit one first in it included,
 		// which is a step of its own but takes no REC (`Atn::sound`).
@@ -65,11 +73,12 @@ header to include anywhere else. */
 		const bool routing = w.overAtn && in.live();
 		routeWork = routing;
 		if (in.live() && transforms && !routing)
-			sig.setVolts(in.get(), color, Mapping());
+			handed.emplace().setVolts(in.get(), color, *Sealed::none());
 		const bool taking = in.live() && holds && w.takes && !poly;
 		recWork = in.live() && holds && !poly;
 
-		Sound snd;
+		Sound& snd = stepSound;
+		snd.fresh();
 		stoodWork = nullptr;
 		fadeTo = nullptr;
 		fadeBy = 0.f;
@@ -99,7 +108,8 @@ header to include anywhere else. */
 		// Routed, what I sound is what the Atn's own jack makes: the
 		// router and its own cable together.
 		if (routing)
-			sig.setVolts(in.get() + (chosenMember->cv.live() ? chosenMember->cv.get() : 0.f), color, Mapping());
+			handed.emplace().setVolts(in.get() + (chosenMember->cv.live() ? chosenMember->cv.get() : 0.f), color, *Sealed::none());
+		const Signal& sig = handed ? *handed : silent;
 		chosenMember->standsAt(lane, w.along);
 		chosenMember->sound(sub, sig, color, snd); // `snd` fresh, as `sound` asks
 		// As that Atn's own jack gives it, so the two agree.
@@ -127,8 +137,7 @@ header to include anywhere else. */
 		const int chans = w.chans;
 		const int c = clamp(w.sounding, 0, chans - 1);
 		snd.semis = chans > 0 ? (arpV ? arpV[c] : inputs[IN_INPUT].getVoltage(c)) * 12.f : 0.f;
-		snd.signal.set(snd.semis, color);
-		snd.window = Mapping();
+		snd.takeWindow(Sealed::none());
 		// My playhead on the Poly I arpeggiate, on the channel sounding,
 		// as it stands on a member I walk: the line there, and the halo
 		// where the walk itself stands, the two parted by a PHASE turn.
@@ -195,7 +204,7 @@ header to include anywhere else. */
 		// poke is the wake asked for; this is the node that changed.
 		into->markDirty();
 		into->written();
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 	/** Halfway through a step a pulse played by hand is the next step's,
 	early rather than late: the step after this one in the walk, lit at
@@ -336,7 +345,7 @@ header to include anywhere else. */
 		                   : chosenMember;
 		QuantFace* qf = q ? q->quantFace() : nullptr;
 		if (qf && snd.type == Sound::CHORD) {
-			const Scale& sc = snd.chord;
+			const Scale& sc = snd.chord();
 			for (int k = sc.base; k < sc.base + sc.period(); k++) // the notes where they stand: a roll's under C4 are no key of it folded up
 				if (sc.has(k))
 					qf->light(k, color);

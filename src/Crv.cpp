@@ -133,10 +133,10 @@ struct Crv : Cartridge, Probe {
 		return m ? m : at(S_KIN);
 	}
 	/** What the next block of CRVs borrows from me: the window I play. */
-	const Mapping* laneOut() override { return &winIn; }
+	const Sealed* laneOut() override { return &winIn; }
 	/** My jack is volts, whatever scale my window carries: a CRV is never
 	quantized, so an OUT Atn reading me scales and offsets volts. */
-	const Mapping* playedOut() override { return nullptr; }
+	const Sealed* playedOut() override { return nullptr; }
 	/** The most CRVs the last of a block gathers from the right. Past them a
 	block is cut: a CRV further left is never told an arc and plays its own
 	ramp, and the first gathered is taken as the block's first, so its LINK
@@ -173,6 +173,7 @@ struct Crv : Cartridge, Probe {
 	// draws, the same one but while a glide is under way.
 	Arc arc, arcSeen;
 	bool toldArc = false; // the last of my block has said, since the parse
+	KeptWeights weights;  // my arc's in its run, which the last of my block reads and keeps here
 	bool joinedIn = false, joinedOut = false; // my start, my end joined to a neighbour, as the last says
 	// Where the arc before me stands at the point I share with it, for the
 	// jump a screen draws dashed under my start where the two are not
@@ -189,7 +190,7 @@ struct Crv : Cartridge, Probe {
 		prevB = prev;
 		toldArc = true;
 		written();
-		poke.store(true, std::memory_order_relaxed);
+		wake();
 	}
 	float lo = -CV_VOLTS, hi = CV_VOLTS;
 	bool bonded = false;
@@ -289,8 +290,8 @@ struct Crv : Cartridge, Probe {
 		toldArc = false;
 	}
 
-	void prepare(const Mapping& win, const ProcessArgs& args) override {
-		win.plainEnds(lo, hi); // volts, a scale in reach or not: a CRV is never quantized
+	void prepare(const Sealed& win, const ProcessArgs& args) override {
+		win->plainEnds(lo, hi); // volts, a scale in reach or not: a CRV is never quantized
 		// I use what my window slot holds only where an Atn lies through it.
 		{
 			Member* src = windowSource();
@@ -323,18 +324,21 @@ struct Crv : Cartridge, Probe {
 			std::reverse(m, m + n);
 			float ps[MAX_BLOCK], es[MAX_BLOCK], cs[MAX_BLOCK];
 			bool ls[MAX_BLOCK], ks[MAX_BLOCK], js[MAX_BLOCK];
+			KeptWeights* ws[MAX_BLOCK];
 			for (int i = 0; i < n; i++) {
+				ws[i] = &m[i]->weights;
 				ps[i] = m[i]->p;
 				es[i] = m[i]->e;
 				cs[i] = m[i]->c;
 				ls[i] = m[i]->link;
 				ks[i] = m[i]->spline;
 			}
-			Arc arcs[MAX_BLOCK];
-			blockArcs(ps, es, cs, ls, ks, n, arcs, js);
+			ArcRoom room, roomSeen;
+			Arc* const arcs = room.arc;
+			blockArcs(ps, es, cs, ls, ks, n, arcs, js, ws);
 			// While any of us glides, the arcs our settings make as well,
 			// for the screens; standing still they are the same arcs.
-			Arc seen[MAX_BLOCK];
+			Arc* const seen = roomSeen.arc;
 			bool gliding = false;
 			for (int i = 0; i < n && !gliding; i++)
 				gliding = m[i]->glidesNow();
@@ -421,19 +425,17 @@ struct Crv : Cartridge, Probe {
 		return arcMemoV;
 	}
 	void sound(int sub, const Signal& sig, int col, Sound& o) override {
-		o.window = winIn;
+		o.takeWindow(winIn);
 		const float v = sane(volts(curveAt(alongIn)));
 		o.semis = v * 12.f;
-		o.note = (int)std::round(o.semis);
-		o.signal.set(v * 12.f, col); // a plain voltage in no window: `setVolts` with the fresh Mapping it holds
-		o.signal.mapped = true;
+		o.note = wholeOf(o.semis);
 	}
 	bool voltsAlong(float along, float& v) const override {
 		v = sane(volts(arcAt(arc, along)));
 		return true;
 	}
 	const tree::Node* quantOf() override { return nullptr; }
-	int litSemis(int sub) override { return (int)std::round(outVolts * 12.f); }
+	int litSemis(int sub) override { return wholeOf(outVolts * 12.f); }
 	void take(int sub, const Taken& t) override {
 		if (cv.live())
 			return;
@@ -477,10 +479,8 @@ struct Crv : Cartridge, Probe {
 	void publishReads() override {
 		Cartridge::publishReads();
 		if (arcShown != arcSeen) {
-			arcGen.fetch_add(1, std::memory_order_release);
-			std::atomic_thread_fence(std::memory_order_release);
+			Writing<uint32_t> whole(arcGen);
 			arcShown = arcSeen;
-			arcGen.fetch_add(1, std::memory_order_release);
 		}
 		loNow.store(lo, std::memory_order_relaxed);
 		hiNow.store(hi, std::memory_order_relaxed);
@@ -1208,7 +1208,7 @@ struct ArcShape : Hovered<ScreenParam> {
 			notchTravel -= dy;
 			if ((now >= 10.f && notchTravel > 0.f) || (now <= -10.f && notchTravel < 0.f))
 				notchTravel = 0.f;
-			const int n = (int)std::round(notchTravel / px);
+			const int n = wholeOf(notchTravel / px);
 			if (n == 0)
 				return;
 			notchTravel -= n * px;

@@ -166,6 +166,16 @@ struct Scale {
 		return true;
 	}
 	bool operator!=(const Scale& o) const { return !(*this == o); }
+	/** The same bytes, every field and the whole of both arrays, where `==`
+	is the same scale, which leaves out the octaves past the count and the
+	cents of a scale not detuned: what lets two copies share one seal
+	(`Sealed`), a copy skipped being then the copy made. A field added here
+	is added to both. */
+	bool identical(const Scale& o) const {
+		return octaves == o.octaves && spread == o.spread && base == o.base && degrees == o.degrees && extra == o.extra &&
+		       divs == o.divs && harmonic == o.harmonic && bend == o.bend && detuned == o.detuned &&
+		       std::memcmp(oct, o.oct, sizeof(oct)) == 0 && std::memcmp(cents, o.cents, sizeof(cents)) == 0;
+	}
 };
 
 /** A Scale a widget can read while the audio thread writes it: its words
@@ -229,14 +239,12 @@ struct ScaleAtomic {
 		sentDegrees = s.degrees;
 		sentLaw = law;
 		sentOwner = ownerWord;
-		gen.fetch_add(1, std::memory_order_release); // odd: writing
-		std::atomic_thread_fence(std::memory_order_release);
+		Writing<uint32_t> whole(gen);
 		for (int k = 0; k < WORDS; k++)
 			w[k].store(x[k], std::memory_order_relaxed);
 		degrees.store(s.degrees, std::memory_order_relaxed);
 		divLaw.store(law, std::memory_order_relaxed);
 		owner.store(ownerWord, std::memory_order_relaxed);
-		gen.fetch_add(1, std::memory_order_release); // even: whole
 	}
 	Scale load(uint32_t* ownerWord = nullptr) const {
 		uint64_t x[WORDS];
@@ -674,7 +682,7 @@ inline float shiftAfterSnap(const Scale& sc, float note, int semis, bool back = 
 	if (!sc.any() || sc.spread)
 		return note + (float)(back ? -semis : semis);
 	const int deg = scaleDegrees(sc, semis);
-	return (float)stepInScale(sc, snapToScale((int)std::round(note), sc), back ? -deg : deg);
+	return (float)stepInScale(sc, snapToScale(wholeOf(note), sc), back ? -deg : deg);
 }
 /** The same of a whole note, which stays whole: a note that is a count from
 the start is shifted as one, and never rounded again. */
@@ -706,7 +714,7 @@ inline int nearestSpread(const Scale& s, float semis) {
 	int notes[12 * MAX_OCTAVES + 1];
 	const int n = spreadNotes(s, notes);
 	if (n == 0)
-		return (int)std::round(semis);
+		return wholeOf(semis);
 	int best = notes[0];
 	for (int i = 1; i < n; i++)
 		if (std::fabs((float)notes[i] - semis) <= std::fabs((float)best - semis))
@@ -721,7 +729,7 @@ reader's cable through it (`quantStage`) are snapped by. */
 inline int nearestNote(const Scale& sc, float semis) {
 	return sc.spread && sc.any() ? nearestSpread(sc, semis)
 	       : sc.any()            ? degreeMoved(sc, nearestInScale(semis, sc))
-	                             : (int)std::round(semis);
+	                             : wholeOf(semis);
 }
 
 /** The same, preferring `root` as the note it is named on: the white keys
@@ -818,7 +826,7 @@ inline bool spanEndsOnScale(int semis, const Scale& scale, int ofsSemis) {
 	// from the same end either side of the line.
 	const int n = std::abs(semis) / 12;
 	const bool growsUp = n % 2 == 0;
-	const int base = (int)std::round((growsUp ? hi : lo) * 12.f);
+	const int base = wholeOf((growsUp ? hi : lo) * 12.f);
 	const int on = snapToScale(base, scale);
 	const int pitch = ofsSemis == 0 ? base : base + shiftAfterSnap(scale, on, ofsSemis) - on;
 	return scale.has(pitch);
@@ -929,7 +937,7 @@ inline bool readNoteSpan(const std::string& text, float& semis) {
 	float a, b;
 	if (!readNoteName(text.substr(0, at), a) || !readNoteName(text.substr(at + len), b))
 		return false;
-	const long cents = std::lround((double)b * 1200.0) - std::lround((double)a * 1200.0);
+	const long cents = wholeOf((double)b * 1200.0) - wholeOf((double)a * 1200.0);
 	semis = (float)cents / 100.f;
 	return true;
 }
@@ -956,7 +964,7 @@ struct Tuned {
 	int cents = 0;
 };
 inline Tuned tunedOf(float volts) {
-	const long c = std::lround((double)volts * 1200.0);
+	const long c = wholeOf((double)volts * 1200.0);
 	const long up = c + 50;
 	const long s = up >= 0 ? up / 100 : -((-up + 99) / 100);
 	return {(int)s, (int)(c - s * 100)};

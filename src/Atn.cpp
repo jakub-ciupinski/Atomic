@@ -220,7 +220,7 @@ struct AtnGlass : Widget {
 				if (!notes)
 					return decimals(sane(volts), 1, 1);
 				if (dir == 0)
-					return noteName((int)std::round(volts * 12.f));
+					return noteName(wholeOf(volts * 12.f));
 				return noteName(dir > 0 ? topNote : footNote);
 			};
 			// Each just inside the black where there is room, and just
@@ -311,15 +311,15 @@ value, so without this typing 3 would put the offset at +10 V and 1 the gain
 at x0.10. A count of semitones is whole from where it is typed. */
 void OfsQuantity::setDisplayValue(float v) {
 	if (atn && relaxed(atn->ofs.unit) == OfsCore::UNIT_SEMIS)
-		setValue((float)(int)std::round(v) / (float)OfsCore::SEMI_REACH);
+		setValue((float)wholeOf(v) / (float)OfsCore::SEMI_REACH);
 	else if (atn && relaxed(atn->ofs.unit) == OfsCore::UNIT_ROLL)
-		setValue((float)(int)std::round(v * 100.f) / (float)(OfsCore::SEMI_REACH * 100)); // typed semitones, whole cents
+		setValue((float)wholeOf(v * 100.f) / (float)(OfsCore::SEMI_REACH * 100)); // typed semitones, whole cents
 	else
 		setValue(v / (float)OfsCore::MAX_VOLTS);
 }
 void GainQuantity::setDisplayValue(float v) {
 	if (atn && relaxed(atn->notesNow))
-		setValue((float)(int)std::round(v) / 12.f);
+		setValue((float)wholeOf(v) / 12.f);
 	else
 		setValue(v * CV_VOLTS);
 }

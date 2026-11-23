@@ -3,6 +3,7 @@
 #pragma once
 #include "plugin.hpp"
 #include <cmath>
+#include <cstring>
 
 /** The curve: a CRV's arc as numbers, depending on nothing but arithmetic, so
 a CRV's jack and its screen read one formula. */
@@ -88,6 +89,24 @@ inline void bendWeights(double s, double& A, double& B) {
 	A = 6.0 * (1.0 / (q * std::sin(q)) + 1.0 / s);
 	B = 6.0 * (-1.0 / s - 1.0 / (q * std::tan(q)));
 }
+/** An arc's weights kept beside the tension they were worked out at: a
+block's arcs are made again whenever a point in it moves, at every sample
+under a cable, and the weights are the tension's alone, a root, a sine and a
+tangent each time for a bend nobody turned. The tension is held bit for bit,
+so the weights given are the ones `bendWeights` gives. */
+struct KeptWeights {
+	double s = 0.0, A = 0.0, B = 0.0;
+	bool known = false;
+	void of(double ten, double& a, double& b) {
+		if (!(known && std::memcmp(&s, &ten, sizeof s) == 0)) {
+			bendWeights(ten, A, B);
+			s = ten;
+			known = true;
+		}
+		a = A;
+		b = B;
+	}
+};
 /** What a bend at a knot adds to its arc at `x` from it, nought to one,
 measured from the far end: nought at both knots, and in the cubic
 `(x^3 - x) / 6`. */
@@ -278,6 +297,15 @@ struct Arc {
 	}
 	bool operator!=(const Arc& o) const { return !(*this == o); }
 };
+/** Room for a block's arcs, none of them made: `blockArcs` makes each arc it
+is asked for and reads no other, so a block of three does not pay at every
+wake for a hundred and twenty-eight made and thrown away. */
+struct ArcRoom {
+	union {
+		Arc arc[BLOCK_ARCS];
+	};
+	ArcRoom() {}
+};
 /** Whether a bent arc is quick to leave its start: above its line rising,
 below it falling. */
 inline bool arcQuickFirst(const Arc& s) { return s.up == (s.b > s.a); }
@@ -322,9 +350,11 @@ inline float arcAt(const Arc& s, float x) {
 links `link` and types `spline`, `n` of them left to right, into `out`, and
 whether each one's end is joined into `joined`. `link[i]` joins member i's
 start to the end of the one before it, the first's to the last's, round the
-block, so a joined end is the next start and its own end is out of force. */
+block, so a joined end is the next start and its own end is out of force.
+`kept`, where given, is each member's own weights from the last time
+(`KeptWeights`). */
 inline void blockArcs(const float* p, const float* e, const float* c, const bool* link, const bool* spline, int n,
-                      Arc* out, bool* joined) {
+                      Arc* out, bool* joined, KeptWeights* const* kept = nullptr) {
 	// Up to BLOCK_ARCS, so a block of 128 has its 128th CRV's arcs written
 	// for it to read.
 	if (n < 1 || n > BLOCK_ARCS)
@@ -391,13 +421,17 @@ inline void blockArcs(const float* p, const float* e, const float* c, const bool
 		float knots[BLOCK_ARCS + 1];
 		double A[BLOCK_ARCS], B[BLOCK_ARCS], M[BLOCK_ARCS + 1];
 		for (int i = 0; i < len; i++) {
-			Arc& s = out[(first + i) % n];
+			const int j = (first + i) % n;
+			Arc& s = out[j];
 			knots[i] = s.a;
 			if (s.c <= TAUT)
 				A[i] = B[i] = 0.0;
 			else {
 				s.ten = ring ? sineTensionOf(s.c, qs, qmax) : tensionOf(s.c);
-				bendWeights(s.ten, A[i], B[i]);
+				if (kept)
+					kept[j]->of(s.ten, A[i], B[i]);
+				else
+					bendWeights(s.ten, A[i], B[i]);
 			}
 		}
 		double s0 = 0.0, s1 = 0.0;

@@ -33,6 +33,18 @@ patch performing on the params, as a Seq's REC take is, not a hand's gesture,
 so it is no step of undo and goes through no ring. Every module it moves is
 woken, as the hand's widget wakes it (`Member::wake`).
 
+The RIG makes no recall itself. Its process() may run on another of Rack's
+threads at the same moment as the host of a rig in its molecule, and a rig
+has one engine thread, its host's (notes/row.md, rule 15): a param set from
+here would move between two reads of one wake. So the RIG writes down what it
+asks, which scenes at what mix and whether the molecule restarts, as one ask
+under the bank's lock (`ask`), and each host of the molecule answers it at
+the head of its own sample, on its own members (`Recaller`, `answer`): the
+recall and the restart together, whole or not at all. With the RIG stepped
+before the host, as on one thread it is when it was added first, that is the
+sample the ask is made on; stepped after it, or beside it on another thread,
+the sample after.
+
 Headless, so a test drives it with no Rack: the UI's half (storing,
 deleting, the file) is the same methods, called on the UI thread in Rack and
 on the test's own thread there. The bank is shared under a spin lock the audio thread only ever
@@ -221,7 +233,7 @@ inline std::string& dialogAnswer() {
 	return answer;
 }
 
-struct RigCore : Module, Bonder {
+struct RigCore : Module, Bonder, Recaller {
 	/** The hand's buttons, each answered by the UI the moment it is
 	pressed; the engine reads nothing of them. */
 	enum ParamId {
@@ -283,13 +295,20 @@ struct RigCore : Module, Bonder {
 	uint32_t cleanAskedGen = 0;
 	std::set<int64_t> cleanAskedIds;
 
+	// Shared, under the same lock: what my engine half asks of the hosts of
+	// my molecule, written by `ask` and read by `answer` on their threads.
+	int askA = -1, askB = 0;  // the scenes to recall, nought based, or none
+	float askT = 0.f;         // and the mix between them
+	uint32_t askRestarts = 0; // restarts asked for since I was made
+	int64_t askFrame = INT64_MIN; // the engine frame of the ask standing
+
 	// The engine's own, read by nothing else.
 	uint32_t seenGen = 0;
 	int count = 0;    // scenes, as of the last generation adopted
 	int current = 0;  // the scene showing, nought based, and nought while there are none
-	bool pending = false; // a recall asked for and not yet made (the bank was held)
+	bool pending = false; // a recall wanted and not yet asked (the bank was held)
 	float lastPos = NAN;  // where the SCENE jack last put the molecule, nought based, or none
-	bool resetDue = false;        // a scene change whose reset waits for its recall
+	bool resetDue = false;        // a restart to ask for, with the recall it belongs to
 	bool restartPending = false;  // a load's reset, waiting for a molecule to reset
 	dsp::SchmittTrigger prevTrig, nextTrig;
 
@@ -349,14 +368,6 @@ struct RigCore : Module, Bonder {
 		}
 	}
 
-	/** A scene change resets the molecule, as the bracket's RESET does (Bracket.hpp):
-	every member asks it, and the rig's host restarts every node a reset
-	restarts, on the sample it reads the ask. Set on the sample of the recall,
-	so the rig hears the new settings and the reset together. */
-	void resetMolecule() {
-		eachInMolecule([](Module* m) { static_cast<Member*>(m)->resetAsked.store(true, std::memory_order_relaxed); });
-	}
-
 	/** Whether an edge at NEXT or PREV on this sample is the pulse a start of
 	my molecule gave: a member's rig started or restarted (`startedAt`, its
 	first sample, the bracket's RESET, a change of scene, a rig loaded) less than
@@ -381,32 +392,61 @@ struct RigCore : Module, Bonder {
 		return echo;
 	}
 
-	/** Scene `a` and scene `b` mixed by `t`, nought being `a` exactly: a
-	continuous param drawn between the two, a count or a switch (`snapEnabled`,
-	Rack's own word for a param that is a whole number) taken from the nearer.
-	A module or a param one scene lacks takes the nearer scene's value where
-	that scene has it, and is left alone where it has not. False, and nothing
-	moved, when the UI holds the bank; the next sample tries again. */
-	bool recall(int a, int b, float t) {
+	/** My engine half's ask, written down for the hosts of my molecule: scene
+	`a` and scene `b` mixed by `t` recalled, or no recall where `a` is minus
+	one, and with it a restart of the molecule where `restart` says so, as the
+	bracket's RESET restarts it (Bracket.hpp), so a rig hears the new settings
+	and the reset on one sample. One ask stands at a time, the last: a recall
+	is where the params go, so an ask no host had taken yet is overtaken, and
+	the restarts are counted, so none is lost with it. False, and nothing
+	asked, when the bank is held, by the UI or by a host answering; the next
+	sample tries again. */
+	bool ask(int64_t frame, int a, int b, float t, bool restart) {
 		if (!lock.tryLock())
 			return false;
+		askA = a;
+		askB = b;
+		askT = t;
+		if (restart)
+			askRestarts++;
+		askFrame = frame;
+		askedNow.store(relaxed(askedNow) + 1, std::memory_order_release);
+		lock.unlock();
+		return true;
+	}
+
+	/** The ask answered by a rig's host, on its thread and its members
+	(`Recaller::answer`): scene `askA` and scene `askB` mixed by `askT`, nought
+	being the first exactly: a continuous param drawn between the two, a count
+	or a switch (`snapEnabled`, Rack's own word for a param that is a whole
+	number) taken from the nearer. A module or a param one scene lacks takes
+	the nearer scene's value where that scene has it, and is left alone where
+	it has not. An ask made before the host met me is marked taken and not
+	answered: a module set beside a RIG keeps its own until the next recall. */
+	bool answer(const std::vector<Member*>& members, int64_t met, uint32_t& taken, uint32_t& restarts, bool& restart) override {
+		if (!lock.tryLock())
+			return false;
+		taken = relaxed(askedNow);
+		const bool mine = askFrame >= met;
+		restart = mine && askRestarts != restarts;
+		restarts = askRestarts;
 		const int n = (int)scenes.size();
-		if (a < 0 || a >= n) {
+		if (!mine || askA < 0 || askA >= n) {
 			lock.unlock();
 			return true;
 		}
-		b = std::min(std::max(b, 0), n - 1);
-		const Scene& A = scenes[a];
-		const Scene& B = scenes[b];
+		const Scene& A = scenes[askA];
+		const Scene& B = scenes[std::min(std::max(askB, 0), n - 1)];
+		const float t = askT;
 		const bool nearA = t < 0.5f;
-		eachInMolecule([&](Module* m) {
+		for (Member* rm : members) {
+			Module* m = rm;
 			const Scene::const_iterator ia = A.find(m->id), ib = B.find(m->id);
 			const std::vector<float>* va = ia != A.end() ? &ia->second : nullptr;
 			const std::vector<float>* vb = ib != B.end() ? &ib->second : nullptr;
 			if (!va && !vb)
-				return;
+				continue;
 			bool moved = false;
-			Member* rm = static_cast<Member*>(m);
 			const size_t n = sceneValues(m, rm);
 			for (size_t i = 0; i < n; i++) {
 				const bool hasA = va && i < va->size(), hasB = vb && i < vb->size();
@@ -430,7 +470,7 @@ struct RigCore : Module, Bonder {
 			}
 			if (moved)
 				rm->land(); // a recall is heard at once, never glided
-		});
+		}
 		lock.unlock();
 		return true;
 	}
@@ -460,7 +500,11 @@ struct RigCore : Module, Bonder {
 			nextEdge = prevEdge = false;
 		const bool patched = inputs[SCENE_INPUT].isConnected();
 		float pos = (float)current;
-		bool recalling = false; // a recall asked for this sample and not made, the bank being held
+		// The recall this sample wants, if any: asked below with the restart
+		// that goes with it, as one ask.
+		bool want = false;
+		int a = -1, b = 0;
+		float t = 0.f;
 		// A load's reset waits for the molecule the load built to be bonded.
 		bool bonded = false;
 		if (restartPending)
@@ -479,11 +523,10 @@ struct RigCore : Module, Bonder {
 				if (!(pos == lastPos)) {
 					// The CV is continuous, so its floor is the knife-edge it is
 					// meant to be: a whole volt is that scene with nothing mixed.
-					const int a = (int)std::floor(pos);
-					if (recall(a, a + 1, pos - (float)a))
-						lastPos = pos;
-					else
-						recalling = true;
+					a = (int)std::floor(pos);
+					b = a + 1;
+					t = pos - (float)a;
+					want = true;
 				}
 				// The jack never resets the molecule, a jump from one whole volt
 				// to another included (`restartsOn`).
@@ -507,13 +550,18 @@ struct RigCore : Module, Bonder {
 				pending = true;
 				resetDue = restartsOn(ACT_STEP, patched);
 			}
-			if (pending && recall(current, current, 0.f))
-				pending = false;
-			recalling = pending;
+			if (pending) {
+				a = b = current;
+				want = true;
+			}
 			pos = (float)current;
 		}
-		if (resetDue && !recalling) {
-			resetMolecule();
+		// A restart with no recall is a rig loaded, built as the scene it
+		// shows: nothing of the bank before it is left standing in the ask.
+		if ((want || resetDue) && ask(args.frame, want ? a : -1, b, t, resetDue)) {
+			if (want && patched)
+				lastPos = pos;
+			pending = false;
 			resetDue = false;
 		}
 		currentNow.store(current, std::memory_order_relaxed);
@@ -667,7 +715,7 @@ struct RigCore : Module, Bonder {
 		for (Module* m : molecule)
 			if (Member* rm = dynamic_cast<Member*>(m))
 				if (!m->isBypassed())
-					rm->resetAsked.store(true, std::memory_order_relaxed);
+					rm->askReset();
 	}
 	/** The hand's recall, on the UI thread: scene `at` set on the molecule here
 	and now, every param it moved written into `moved` for one step of undo,
@@ -898,7 +946,16 @@ struct RigCore : Module, Bonder {
 	defended against presets. The RIG's undo goes through `setState`, never here. */
 	bool built = false;
 	void onAdd(const AddEvent& e) override { built = true; }
-	void onRemove(const RemoveEvent& e) override { built = false; }
+	void onRemove(const RemoveEvent& e) override {
+		built = false;
+		bumpTopology();
+	}
+	// A host keeps the RIG it found at its molecule's left until the topology
+	// moves (`Host::meet`), so whatever changes who that is rings, as a
+	// member's own changes do: a RIG gone, bypassed, or bonded anew.
+	void onExpanderChange(const ExpanderChangeEvent& e) override { bumpTopology(); }
+	void onBypass(const BypassEvent& e) override { bumpTopology(); }
+	void onUnBypass(const UnBypassEvent& e) override { bumpTopology(); }
 	void dataFromJson(json_t* rootJ) override {
 		if (built && !wasReset(rootJ)) {
 			INFO("RIG %lld: state handed to a RIG already standing is ignored", (long long)id);

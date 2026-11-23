@@ -39,7 +39,7 @@ void build(const std::vector<Node*>& rig) {
 		n->also.reserve(rig.size());
 		n->reached.reserve(rig.size());
 		n->slots.assign(n->declarations().size(), Slot());
-		n->dirty = true;
+		n->dirty = n->whole = n->own = true;
 		n->always = false;
 	}
 	// Left to right, each node settled before the next searches: a node's
@@ -171,18 +171,13 @@ void Node::hear(Node* to, uint32_t what) {
 }
 
 bool gating = true;
+#ifdef ATOMIC_DEV
 thread_local long long wakes = 0; // each engine thread its own count: two rigs' hosts may wake at once, and only the bench, on its one thread, reads them
 thread_local long long runs = 0;
+thread_local long long ramps = 0;
+#endif
 bool checkQuiet = false;
 long long quietBroken = 0;
-thread_local bool fineMoved = false;
-
-void Node::setFine(bool f) {
-	if (f != fine) {
-		fine = f;
-		fineMoved = true;
-	}
-}
 
 /** The cluster `i` is in, halving the way as it goes. */
 static size_t rootOf(std::vector<size_t>& up, size_t i) {
@@ -346,14 +341,19 @@ published last, so the third does too; else a block of CRVs walked by a Seq
 that wakes every sample publishes every member every sample for the one the
 playhead stands on. Every write into another node says so through `written`,
 which is what keeps this exact rather than hopeful. */
-void evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly) {
-	wakes++;
+bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly, bool rampsApart) {
+	// Counted here, in the wake's own locals, and told the thread's counters
+	// once at its end: a thread's own variable is a call to reach on Windows,
+	// and one a node was two of them for every node of every wake.
+	long long ran = 0, ramped = 0;
+	bool fineMoved = false;
 	// On a wake for the fraction alone, what the fine group cannot reach
 	// keeps what its readers, sitting it out, wrote into it.
 	const bool all = !fineOnly || !gating;
 	for (Node* n : rig) {
 		const bool mine = all || n->fineReach || !n->holds;
 		if (!gating || (mine && (n->dirty || (n->touch && n->holds)))) {
+			n->worked = true;
 			n->clearReads();
 			n->moved |= n->holds;
 			n->holds = false;
@@ -370,19 +370,36 @@ void evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bo
 			// would have, so it writes it afresh rather than twice.
 			for (Node* m : n->reached)
 				if (m->holds) {
+					m->worked = true;
 					m->clearReads();
 					m->moved = true;
 					m->holds = false;
 				}
-		n->dirty = false;
+		// Marked, and by its own ramp alone: no jack or knob of its own, no
+		// child's answer and no word written into it has moved, so what the
+		// gate would have kept from running at all runs for the fraction.
+		const bool ramp = all && rampsApart && gating && n->dirty && !n->whole;
+		ramped += ramp;
+		n->dirty = n->whole = false;
 		n->ranNow = true;
-		runs++;
-		n->fineWake = !all;
+		n->worked = true;
+		ran++;
+		n->fineWake = !all || ramp;
+		const bool own = n->own;
+		n->own = false;
+		const bool fine = n->fine;
 		n->evaluate(args);
-		if (!n->published())
-			continue; // the change dies here
+		fineMoved |= n->fine != fine;
+		if (!n->published()) {
+			// The change dies here, but a reader of mine at every wake reads
+			// more of me than my answer, so its wake is no ramp alone.
+			if (own)
+				for (Node* p : n->parents)
+					p->whole = true;
+			continue;
+		}
 		for (Node* p : n->parents)
-			p->dirty = true;
+			p->dirty = p->whole = true;
 	}
 	for (Node* n : rig) {
 		if (!n->ranNow && !(n->touch && (n->moved || n->publishesLive))) {
@@ -392,8 +409,17 @@ void evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bo
 		}
 		n->ranNow = false;
 		n->moved = false;
+		n->worked = true;
 		n->publishReads();
 	}
+#ifdef ATOMIC_DEV
+	wakes++;
+	runs += ran;
+	ramps += ramped;
+#else
+	(void)ran, (void)ramped;
+#endif
+	return fineMoved;
 }
 
 std::string print(const std::vector<Node*>& rig) {

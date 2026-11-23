@@ -63,7 +63,7 @@ inline std::string num(float v) {
 	return s;
 }
 inline std::string col(NVGcolor c) {
-	auto b = [](float v) { return (int)std::lround(clamp(v, 0.f, 1.f) * 255.f); };
+	auto b = [](float v) { return wholeOf(clamp(v, 0.f, 1.f) * 255.f); };
 	return string::f("#%02x%02x%02x%02x", b(c.r), b(c.g), b(c.b), b(c.a));
 }
 /** Where a point really lands on the panel.
