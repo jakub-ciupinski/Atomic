@@ -2058,8 +2058,8 @@ struct ClockWidget : MemberWidget {
 	/** What only the UI knows of my colour: the cable I follow and the bond. */
 	void step() override {
 		if (clock) {
-			clock->inRGB.store(cableColorOn(getInput(Clock::CLOCK_INPUT)), std::memory_order_relaxed);
-			clock->bpmRGB.store(cableColorOn(getInput(Clock::BPM_INPUT)), std::memory_order_relaxed);
+			clock->inRGB.store(cableColorIn(module, Clock::CLOCK_INPUT), std::memory_order_relaxed);
+			clock->bpmRGB.store(cableColorIn(module, Clock::BPM_INPUT), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this);
 			clock->bondedUi.store(run && run->size() > 1, std::memory_order_relaxed);
 			bool seqs = false, right = false, left = false;

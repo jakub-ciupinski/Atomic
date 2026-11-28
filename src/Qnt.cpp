@@ -128,7 +128,7 @@ struct BendQuantity : LawQuantity<HintQuantity> {
 	std::string getUnit() override { return std::string(); }
 };
 
-struct Qnt : Cartridge, QuantFace, Probe {
+struct Qnt final : Cartridge, QuantFace, Probe {
 	MEMBER_FOOTPRINT
 	enum ParamId {
 		MODE_PARAM,  // the mode, set by the title's arrows: 1 the keyboard, -1 the roll, 0 the volt divider
@@ -166,6 +166,8 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	// end of the wake with the lit keys, so a frame never draws the new
 	// keyboard under the old lights.
 	int octavesWork = 1, transposeWork = 0, rollShiftWork = 0;
+	int transposeKeyWork = 0;  // the transpose as a key of the scale in force (`rowAsSet`)
+	bool patternWork = false;  // whether the scale in force holds a note
 	bool rollWork = false;
 	/** What a screen reads of the scale in force, in one load: the scale,
 	and beside it the octaves the mode spans, whether the keys are the
@@ -820,6 +822,14 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		octavesWork = octaves;
 		rollWork = roll;
 		scale = now;
+		// Asked of the scale once here, where it is made, and not a voice a
+		// sample: whether it holds a note, and the key its transpose is.
+		patternWork = scale.any();
+		transposeKeyWork = scale.keyOf(tr);
+		// And each voice's two notes were this scale's no longer.
+		for (KeySpan& span : ownSpans)
+			span = KeySpan();
+		actSpan = KeySpan();
 	}
 	/** The window: the scale is mine, and the reach and shift arriving pass
 	through, so an Atn before me shapes what stands past me as it shapes what
@@ -873,22 +883,38 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	// call.
 	int bandActed = NO_BAND;
 	int noteActedWork = 0; // the whole semitone `act` snapped to, its cents aside; a divider's is lit by its band
+	// The two notes the pitch `act` last snapped stood between, as a channel
+	// of my own cable keeps its own (`ownSpans`): one for every reader, so
+	// voices of a chord through me take it from each other and search as
+	// they did.
+	KeySpan actSpan;
 	float act(Signal& s, int color, int* value) override {
-		if (s.present && transposeWork != 0 && scale.any())
+		if (s.present && transposeWork != 0 && patternWork)
 			s.set(s.semis + (float)transposeWork, s.color);
-		const float out = quantStage(s, scale, value, &bandActed, &noteActedWork);
+		// A divider snaps to no note and leaves the last one standing.
+		Snapped at{noteActedWork, -1};
+		const float out = quantStage(s, scale, value, &bandActed, &at, actSpan);
+		noteActedWork = at.note;
 		if (value && *value >= 0)
-			*value = keyRow(noteActedWork);
+			*value = at.row >= 0 ? rowAsSet(at.row) : keyRow(noteActedWork);
 		return out;
 	}
 	int noteActed(float semis) override { return noteActedWork; }
 	/** The key that sounds a pitch, as the screen draws it: the keys stand
 	as set, a keyboard's and a roll's alike, so a transposed note is the key it
 	was moved from, a roll's top C its own slot. */
-	int keyRow(int semis) const {
-		if (scale.spread && scale.extra && semis == scale.base + scale.period())
+	int keyRow(int semis) const { return rowAsSet(scale.rowOf(semis)); }
+	/** The same of a row of the scale in force, which a snap hands back
+	with its note (`Snapped`): the transpose's own key taken off it, the
+	period going round, and the top C as it is. The period is added by a
+	count and not on a branch: which side of the transpose a voice's key
+	falls is as good as chance under a moving signal, and a branch on it
+	was a quarter of a voice's time at audio rate. */
+	int rowAsSet(int row) const {
+		if (row == TOP_KEY)
 			return TOP_KEY;
-		return scale.keyOf(semis - transposeWork);
+		const int key = row - transposeKeyWork;
+		return key + (key < 0 ? 1 : 0) * scale.period();
 	}
 	bool windowIn(Mapping& win) override {
 		win = *winIn;
@@ -977,6 +1003,10 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		bandHeadsWork[b] = packHead(bandHeadsWork[b], col);
 	}
 	int ownWork[PORT_MAX_CHANNELS]; // the keys I sound myself, a channel each
+	// The two notes each channel of my own cable last stood between, the
+	// engine's alone: a pitch still between them is snapped with no search
+	// (`nearestNote`). Started afresh wherever the scale is made.
+	KeySpan ownSpans[PORT_MAX_CHANNELS];
 	int nOwn = 0;
 	bool ownKey(int k) const {
 		for (int i = 0; i < nOwn; i++)
@@ -1018,6 +1048,17 @@ struct Qnt : Cartridge, QuantFace, Probe {
 			}
 			return c != 0 || h != 0;
 		};
+		// Either list is left as a function of what it holds, in order and
+		// with nothing after its last, when anything joined it or left it: a
+		// publish made for several wakes at once joins them in another order
+		// than one a wake would, and the list is to be the same list.
+		const auto settled = [](auto* list, int n, int kept, int was) {
+			if (n == kept && kept == was)
+				return;
+			std::sort(list, list + n);
+			std::fill(list + n, list + std::max(n, was), 0);
+		};
+		const int wasKeys = nShownKeys;
 		int keptKeys = 0;
 		for (int j = 0; j < nShownKeys; j++)
 			if (publishKey(shownKeys[j]))
@@ -1033,6 +1074,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 			joinKey(litKeys[i]);
 		for (int i = 0; i < nOwn; i++)
 			joinKey(ownWork[i]);
+		settled(shownKeys, nShownKeys, keptKeys, wasKeys);
 		// The divider's bands, my own cable's in its colour under a reader's.
 		const int ownCol = clamp(colorWork >= 0 ? colorWork : hue, 0, MAX_COLORS - 1);
 		// Only a band shown lit, lit by a reader or by my own cable can
@@ -1051,6 +1093,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 			}
 			return h;
 		};
+		const int wasBands = nShownBands;
 		int kept = 0;
 		for (int j = 0; j < nShownBands; j++)
 			if (publish(shownBands[j]) != 0)
@@ -1066,6 +1109,7 @@ struct Qnt : Cartridge, QuantFace, Probe {
 			join(litBands[i]);
 		for (int i = 0; i < nOwnBands; i++)
 			join(ownBands[i]);
+		settled(shownBands, nShownBands, kept, wasBands);
 		claimedNow.store(claimedByReader(), std::memory_order_relaxed);
 		const bool read = claimedByReader() || usedNow() || litByWork == -1;
 		groupNow.store(colorRead >= 0 ? colorRead : litByWork >= 0 ? litByWork : read ? std::max(shownColorWork, 0) : -1,
@@ -1077,18 +1121,26 @@ struct Qnt : Cartridge, QuantFace, Probe {
 	parts); a note of the pattern with its key's cents; unquantized, passed
 	as it came, through its semitones. */
 	float snappedVolts(float v) const {
+		Snapped at;
+		KeySpan span;
+		return snappedVolts(v, at, span);
+	}
+	/** The same, telling the note a pattern snapped it to and the row it
+	lights, its cents aside: the search for it is most of a voice's work, so
+	a jack that wants both asks once. The pitch is moved by the transpose
+	first, as `act` moves a reader's; a divider and a Qnt with no key on
+	leave `at` as it was. `span` is the voice's own (`nearestNote`). */
+	float snappedVolts(float v, Snapped& at, KeySpan& span) const {
 		if (scale.divides())
 			return Divider::of(scale).snap(v);
 		// Unquantized, through semitones and back rather than plain v: the trip
 		// moves the last bit of about one float in six, and what the jack has
 		// always given keeps that bit.
-		return scale.any() ? scale.tunedVolts(snappedNote(v)) : v * 12.f / 12.f;
-	}
-	/** The whole semitone a pitch is snapped to, its cents aside, for the
-	key it lights: moved by the transpose first where there is a pattern, as
-	`act` moves a reader's. */
-	int snappedNote(float v) const {
-		return nearestNote(scale, scale.any() ? v * 12.f + (float)transposeWork : v * 12.f);
+		if (!patternWork)
+			return v * 12.f / 12.f;
+		// A NaN is quantized as nought volts would be, Rack's convention.
+		at = nearestNote(scale, sane(v) * 12.f + (float)transposeWork, span);
+		return scale.tunedVolts(at.note);
 	}
 	void publishJack() override {
 		const bool ownPitch = ownCable();
@@ -1105,15 +1157,18 @@ struct Qnt : Cartridge, QuantFace, Probe {
 		outputs[CV_OUTPUT].setChannels(n);
 		for (int c = 0; c < n; c++) {
 			const float in = c == 0 ? cv.get() : inputs[IN_INPUT].getVoltage(c);
-			const int semis = snappedNote(in);
+			Snapped at;
+			const float out = snappedVolts(in, at, ownSpans[c]);
 			if (scale.divides()) {
 				// The band from the voltage itself, never back from the
 				// snapped semitones, where the screen shows it.
 				ownBands[nOwnBands++] = Divider::of(scale).shown(Divider::of(scale).band(in));
 			}
-			else if (scale.holds(semis))
-				ownWork[nOwn++] = keyRow(semis); // the top C of a roll its own, as every other light names it
-			outputs[CV_OUTPUT].setVoltage(sane(snappedVolts(in)), c);
+			// With no key on there is no key to light: a pitch passed as it
+			// came is nobody's (`Scale::holds`).
+			else if (at.row >= 0)
+				ownWork[nOwn++] = rowAsSet(at.row); // the top C of a roll its own, as every other light names it
+			outputs[CV_OUTPUT].setVoltage(sane(out), c);
 		}
 		jackWidth = n;
 		routedJack();
@@ -2058,7 +2113,7 @@ struct QntWidget : MemberWidget {
 	void step() override {
 		std::vector<Qnt*> block;
 		if (qnt) {
-			qnt->inRGB.store(cableColorOn(getInput(Qnt::IN_INPUT)), std::memory_order_relaxed);
+			qnt->inRGB.store(cableColorIn(module, Qnt::IN_INPUT), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this);
 			qnt->bondedUi.store(run && run->size() > 1, std::memory_order_relaxed);
 			// A QNT touching me on the right claims me and I stand down

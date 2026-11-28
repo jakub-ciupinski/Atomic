@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <simd/functions.hpp>
 #include "Whole.hpp"
 
 /** How long things last: a trigger on a cable, and a transient on a screen.
@@ -165,6 +166,54 @@ struct HeldSpan {
 	bool rests(float now, float span) const {
 		return up.rests(std::max(now, 0.f), span) && down.rests(std::min(now, 0.f), span);
 	}
+};
+/** A gatherer's bars, `N` spans held side by side: the same hold a bar as
+`HeldSpan`, their fields laid in columns so a wake sees every bar's level
+four at a time (`see`), which was two holds a bar, sixteen bars, at every
+wake of a Poly or a Mix under a moving signal. The bars are always seen
+together and looked at together, so they share the one word on whether
+anything was seen since the last look. A look is `HeldSpan`'s own, a bar at a
+time, on the control period. */
+template <int N>
+struct HeldSpans {
+	static constexpr int LANES = (N + 3) / 4 * 4;
+	alignas(16) float upMark[LANES] = {}, upCaught[LANES] = {};
+	alignas(16) float downMark[LANES] = {}, downCaught[LANES] = {};
+	bool any = false;
+	/** Every bar's level, `level` holding `LANES` of them: `Held::see` on
+	each side of each, the same comparisons in the same order, four bars to
+	an instruction. The halves are `std::max(v, 0.f)` and `std::min(v, 0.f)`
+	as the library writes them, so a nought keeps the sign it came with. */
+	void see(const float* level) {
+		using rack::simd::float_4;
+		for (int i = 0; i < LANES; i += 4) {
+			const float_4 v = float_4::load(level + i);
+			float_4 up = rack::simd::ifelse(v < 0.f, 0.f, v), down = rack::simd::ifelse(0.f < v, 0.f, v);
+			if (any) {
+				const float_4 wasUp = float_4::load(upCaught + i), wasDown = float_4::load(downCaught + i);
+				up = rack::simd::ifelse(rack::simd::fabs(up) > rack::simd::fabs(wasUp), up, wasUp);
+				down = rack::simd::ifelse(rack::simd::fabs(down) > rack::simd::fabs(wasDown), down, wasDown);
+			}
+			up.store(upCaught + i);
+			down.store(downCaught + i);
+		}
+		any = true;
+	}
+	/** Bar `c` as a span of its own, for what is asked a bar at a time. */
+	HeldSpan at(int c) const { return {{upMark[c], upCaught[c], any}, {downMark[c], downCaught[c], any}}; }
+	/** The look, every bar at its level now (`HeldSpan::look`), after
+	which nothing has been seen. */
+	void look(const float* now, float dt, float span) {
+		for (int c = 0; c < N; c++) {
+			HeldSpan h = at(c);
+			h.look(now[c], dt, span);
+			upMark[c] = h.up.mark;
+			downMark[c] = h.down.mark;
+		}
+		any = false;
+	}
+	uint64_t packed(int c) const { return at(c).packed(); }
+	bool rests(int c, float now, float span) const { return at(c).rests(now, span); }
 };
 /** A `HeldSpan::packed` word unpacked: the foot, at or below nought, and
 the top, at or above it. */

@@ -43,9 +43,22 @@ when it goes, the thing whole; a reader takes it between two looks at an even
 count that agree, or tries again. One writer at a time, which is what a
 generation count asks anyway, so the count goes up by a load and a store,
 where an add in place is a locked instruction on x86, twice a writing. */
+#ifdef ATOMIC_DEV
+/** For the headless tests alone: where each count a `Writing` moves stands,
+noted while this points anywhere. A count says how often its thing was
+written, which a publish made later leaves lower with the thing the same, so
+a test holding two runs to the same bytes leaves the counts out (the late
+invariant, sim/fuzz.cpp). */
+inline std::vector<const void*>* writingsNoted = nullptr;
+#endif
+
 template <typename T>
 struct Writing {
 	explicit Writing(std::atomic<T>& gen) : gen(gen) {
+#ifdef ATOMIC_DEV
+		if (writingsNoted)
+			writingsNoted->push_back(&gen);
+#endif
 		gen.store(relaxed(gen) + 1, std::memory_order_release); // odd: writing
 		std::atomic_thread_fence(std::memory_order_release);
 	}

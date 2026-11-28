@@ -381,6 +381,46 @@ inline bool hintState(const ModuleWidget* front) {
 	return front && hintBracketFront() == front;
 }
 
+/** The rigs a bracket's word speaks for: one member of each rig the drawn
+run of `mw` holds, a bonder parting them, so a bracket across a GAP resets the
+rigs on both sides of it at once, and a RIG's speaks for the rig bonded to
+its right, a bonder being no member of any rig. Worked out once for a run,
+under its first member, and kept while the runs stand (`runsMade`): every
+member of a run asks it every frame, in its step and again as it draws, and
+a walk of the run for each was the run's length squared. */
+inline const std::vector<Member*>& rigHeads(ModuleWidget* mw) {
+	static std::map<ModuleWidget*, std::vector<Member*>> heads; // by the run's first member
+	static uint64_t made = 0;
+	const std::vector<ModuleWidget*>* run = mw ? runOf(mw) : nullptr;
+	if (made != runsMade()) {
+		made = runsMade();
+		heads.clear();
+	}
+	ModuleWidget* front = run ? run->front() : mw;
+	std::map<ModuleWidget*, std::vector<Member*>>::iterator it = heads.find(front);
+	if (it != heads.end())
+		return it->second;
+	std::vector<Member*>& out = heads[front];
+	if (!mw)
+		return out;
+	if (!run) {
+		if (Member* m = dynamic_cast<Member*>(mw->module))
+			out.push_back(m);
+		return out;
+	}
+	bool fresh = true; // the next member starts a rig
+	for (ModuleWidget* o : *run) {
+		if (o->module && isBonder(o->module))
+			fresh = true;
+		else if (Member* m = dynamic_cast<Member*>(o->module)) {
+			if (fresh)
+				out.push_back(m);
+			fresh = false;
+		}
+	}
+	return out;
+}
+
 /** RESET on the bracket: while the rig holds anything a Sync starts again, a Seq
 or a Clock, the name on the bracket is a Sync's button, and under the pointer it
 turns to RESET in red, a click starting every reader and Clock of the rig
@@ -415,34 +455,26 @@ struct BracketReset : Widget, HintSource {
 	press. */
 	double pressedAt = -1e9;
 	static constexpr double PRESS_FLASH = 0.45;
-	ModuleWidget* panel() { return dynamic_cast<ModuleWidget*>(getParent()); }
-	/** The rigs this word speaks for: one member of each rig the drawn run
-	holds, a bonder parting them, so a bracket across a GAP resets the
-	rigs on both sides of it at once, and a RIG's speaks for the rig bonded to
-	its right, a bonder being no member of any rig. */
-	std::vector<Member*> rigModules() {
-		std::vector<Member*> out;
-		ModuleWidget* mw = panel();
-		if (!mw)
-			return out;
-		const std::vector<ModuleWidget*>* run = runOf(mw);
-		if (!run) {
-			if (Member* m = dynamic_cast<Member*>(mw->module))
-				out.push_back(m);
-			return out;
-		}
-		bool fresh = true; // the next member starts a rig
-		for (ModuleWidget* o : *run) {
-			if (o->module && isBonder(o->module))
-				fresh = true;
-			else if (Member* m = dynamic_cast<Member*>(o->module)) {
-				if (fresh)
-					out.push_back(m);
-				fresh = false;
-			}
-		}
-		return out;
+	/** The words that have met the pointer, from the first hover or press
+	of each until it is gone: only these have a hover or a press to tell, so
+	the first of a run asks these few whether they stand in its run
+	(`speaking`), where it looked through every child of every member for
+	the run's words, every frame. The drawing's thread only. */
+	static std::vector<BracketReset*>& met() {
+		static std::vector<BracketReset*> words;
+		return words;
 	}
+	void meet() {
+		std::vector<BracketReset*>& words = met();
+		if (std::find(words.begin(), words.end(), this) == words.end())
+			words.push_back(this);
+	}
+	~BracketReset() {
+		std::vector<BracketReset*>& words = met();
+		words.erase(std::remove(words.begin(), words.end(), this), words.end());
+	}
+	ModuleWidget* panel() { return dynamic_cast<ModuleWidget*>(getParent()); }
+	const std::vector<Member*>& rigModules() { return rigHeads(panel()); }
 	/** Whether any of my rigs is off the line, from the engine's word on it. */
 	bool off() {
 		for (Member* m : rigModules())
@@ -492,8 +524,10 @@ struct BracketReset : Widget, HintSource {
 	}
 	void onHover(const HoverEvent& e) override {
 		hovered = resettable() && over(e.pos);
-		if (hovered)
+		if (hovered) {
+			meet();
 			e.consume(this);
+		}
 		Widget::onHover(e);
 	}
 	void onLeave(const LeaveEvent& e) override {
@@ -507,6 +541,7 @@ struct BracketReset : Widget, HintSource {
 					m->askReset();
 					m->wake();
 					pressedAt = frameNow();
+					meet();
 				}
 			}
 			e.consume(this);
@@ -528,12 +563,11 @@ struct BracketReset : Widget, HintSource {
 		if (!run || run->size() < 2 || run->front() != mw)
 			return false;
 		double pressed = -1e9;
-		for (ModuleWidget* m : *run)
-			for (Widget* c : m->children)
-				if (BracketReset* rs = castTo<BracketReset>(c)) {
-					lit = lit || rs->hovered;
-					pressed = std::max(pressed, rs->pressedAt);
-				}
+		for (BracketReset* rs : met())
+			if (std::find(run->begin(), run->end(), rs->panel()) != run->end()) {
+				lit = lit || rs->hovered;
+				pressed = std::max(pressed, rs->pressedAt);
+			}
 		o = off();
 		// A press answers with a flash of its own, the word bright and
 		// glowing and fading back over a moment, in line or not.
@@ -844,6 +878,23 @@ inline void forgetHint(ModuleWidget* mw);              // below
 inline void appendHelp(ModuleWidget* mw, ui::Menu* menu); // below
 inline ModuleWidget* spawnApart(ModuleWidget* mw, Model* model); // Swap.hpp
 
+/** What the rack and the scene carry of ours, one of each however many
+modules stand: the swap menu, the tooltips' NO AUDIO line and the cables'
+glow, each made the first time it is looked for and not found. Looked for once
+a frame, by the first of ours to step, as `hintFrame` is: asked by every
+module, each of the three was a search of the rack's or the scene's children
+for every module, every frame. */
+inline void rackParts() {
+	static FrameId at;
+	const FrameId now = frameId();
+	if (!(now != at))
+		return;
+	at = now;
+	swapMenu();
+	noAudioTips();
+	cableGlow();
+}
+
 struct MemberWidget : ModuleWidget, HintSource {
 	/** What the panel itself says, under the pointer where no part does:
 	on the title, the key that opens the swap menu over it, and the chord
@@ -1145,9 +1196,7 @@ struct MemberWidget : ModuleWidget, HintSource {
 		keepManualMode(); // the Manual item opens in the panels' mode
 		sayOwn();
 		showTips(module); // the lesson after a rest, the essentials at once
-		swapMenu(); // the rack's, made by the first of ours to step
-		noAudioTips(); // the scene's, the same
-		cableGlow(); // the rack's, the same
+		rackParts(); // the rack's and the scene's, looked for once a frame
 #ifdef ATOMIC_DEV
 		followTools(); // the tools plugin's DEV and PAL, once a frame
 #endif

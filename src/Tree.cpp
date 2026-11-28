@@ -333,6 +333,17 @@ every child, so a mark made here always lands ahead of the pass and is never
 made too late.
 
 The third hands the screens the lot, at once, which is the three-pass rule.
+A late wake, one of a run on consecutive samples that the host will follow
+with a look before the engine rests (`Host::sample`), leaves the handing over
+to that look: a screen is drawn sixty times a second and a run wakes forty-eight
+thousand, so every node the pass would have published is marked as owing
+instead, and the look, or the next wake that is not late, publishes it as it
+then stands. That is the publish the last wake of the run would have made,
+because a publish only hands over what the wake left in plain fields: the
+latest is what a screen is owed, and the one kind of thing a later wake does
+not carry, a fact that lives for one wake (a ring's bloom), is gathered in a
+`Latch` until a publish takes it. What a wake's end owes the engine is not a
+publish and is never late (`wakeEnds`).
 
 A node a writer can reach that neither ran nor was written into has nothing
 new for either end: its reads were cleared already and nothing has been put
@@ -341,7 +352,7 @@ published last, so the third does too; else a block of CRVs walked by a Seq
 that wakes every sample publishes every member every sample for the one the
 playhead stands on. Every write into another node says so through `written`,
 which is what keeps this exact rather than hopeful. */
-bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly, bool rampsApart) {
+bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly, bool rampsApart, bool late) {
 	// Counted here, in the wake's own locals, and told the thread's counters
 	// once at its end: a thread's own variable is a call to reach on Windows,
 	// and one a node was two of them for every node of every wake.
@@ -402,14 +413,22 @@ bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bo
 			p->dirty = p->whole = true;
 	}
 	for (Node* n : rig) {
-		if (!n->ranNow && !(n->touch && (n->moved || n->publishesLive))) {
+		if (n->ranNow || (n->touch && (n->moved || n->publishesLive))) {
+			n->ranNow = false;
+			n->moved = false;
+			n->worked = true;
+			n->owes = true;
+			if (n->publishesLive)
+				n->wakeEnds();
+		}
+		if (late)
+			continue;
+		if (!n->owes) {
 			if (checkQuiet && n->touch)
 				quietOrBroken(n, "publish", [n] { n->publishReads(); });
 			continue;
 		}
-		n->ranNow = false;
-		n->moved = false;
-		n->worked = true;
+		n->owes = false;
 		n->publishReads();
 	}
 #ifdef ATOMIC_DEV
@@ -420,6 +439,14 @@ bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bo
 	(void)ran, (void)ramped;
 #endif
 	return fineMoved;
+}
+
+void look(const std::vector<Node*>& rig) {
+	for (Node* n : rig)
+		if (n->owes) {
+			n->owes = false;
+			n->publishReads();
+		}
 }
 
 std::string print(const std::vector<Node*>& rig) {

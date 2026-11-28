@@ -133,36 +133,50 @@ struct Mix : Gatherer<Mix, ROWS, ROWS + 1> {
 
 	float sum = 0.f; // the sum of the rows left on, at the sum's level; the last bar meters it
 	static_assert(SUM_PARAM == LEVEL_PARAM + ROWS, "the sum's level is the row after the last");
-	/** Row `c`'s level, or the sum's for `ROWS`: the level set, which a
-	mute keeps. */
-	float level(int c) { return clamp(params[LEVEL_PARAM + c].getValue(), 0.f, 1.f); }
-	/** Whether row `c`, or the sum for `ROWS`, is muted: a switch of its own
-	beside the level, so a mute keeps the level set and unmuting gives it
-	back. */
-	bool muted(int c) { return params[MUTE_PARAM + c].getValue() > 0.5f; }
-	/** Whether channel `c` is soloed, a switch of its own; never the sum. */
-	bool soloed(int c) { return c < ROWS && params[SOLO_PARAM + c].getValue() > 0.5f; }
-	/** Whether a solo stands among the first `rows` rows, the ones with a
-	source: a solo left on a row whose source has gone is on no row a hand
-	can reach to undo it, so it silences nothing. */
-	bool soloing(int rows) {
-		for (int c = 0; c < std::min(rows, ROWS); c++)
-			if (soloed(c))
-				return true;
-		return false;
-	}
-	/** Whether the switches let row `c` through, `solo` being `soloing` of
-	the rows there are: while a solo stands a channel is through when
-	soloed and only then, its mute held under the solo for when it is
-	unsoloed; otherwise, and always for the sum, when not muted. The one
-	place the rule lives: what is heard and what the screen draws both ask
-	it. */
-	bool open(int c, bool solo) { return solo && c < ROWS ? soloed(c) : !muted(c); }
+	/** The levels and the switches read off one set of params: my own as
+	they stand, for whoever asks now (`desk`), or a copy taken at one
+	moment, for a sample that must stand by what it read (`stepGlides`).
+	The rules are here once. */
+	struct Desk {
+		Param* p;
+		/** Row `c`'s level, or the sum's for `ROWS`: the level set, which a
+		mute keeps. */
+		float level(int c) const { return clamp(p[LEVEL_PARAM + c].getValue(), 0.f, 1.f); }
+		/** Whether row `c`, or the sum for `ROWS`, is muted: a switch of its own
+		beside the level, so a mute keeps the level set and unmuting gives it
+		back. */
+		bool muted(int c) const { return p[MUTE_PARAM + c].getValue() > 0.5f; }
+		/** Whether channel `c` is soloed, a switch of its own; never the sum. */
+		bool soloed(int c) const { return c < ROWS && p[SOLO_PARAM + c].getValue() > 0.5f; }
+		/** Whether a solo stands among the first `rows` rows, the ones with a
+		source: a solo left on a row whose source has gone is on no row a hand
+		can reach to undo it, so it silences nothing. */
+		bool soloing(int rows) const {
+			for (int c = 0; c < std::min(rows, ROWS); c++)
+				if (soloed(c))
+					return true;
+			return false;
+		}
+		/** Whether the switches let row `c` through, `solo` being `soloing` of
+		the rows there are: while a solo stands a channel is through when
+		soloed and only then, its mute held under the solo for when it is
+		unsoloed; otherwise, and always for the sum, when not muted. The one
+		place the rule lives: what is heard and what the screen draws both ask
+		it. */
+		bool open(int c, bool solo) const { return solo && c < ROWS ? soloed(c) : !muted(c); }
+		/** The level the row is heard at: its own while open, else nothing. */
+		float heard(int c, bool solo) const { return open(c, solo) ? level(c) : 0.f; }
+	};
+	Desk desk() { return Desk{params.data()}; }
+	float level(int c) { return desk().level(c); }
+	bool muted(int c) { return desk().muted(c); }
+	bool soloed(int c) { return desk().soloed(c); }
+	bool soloing(int rows) { return desk().soloing(rows); }
+	bool open(int c, bool solo) { return desk().open(c, solo); }
 	/** Whether row `c`'s mute silences it now, a solo on it not standing
 	over the mute: a row with a source is soloed only while a solo stands. */
 	bool muteHolds(int c) { return muted(c) && !soloed(c); }
-	/** The level the row is heard at: its own while open, else nothing. */
-	float heard(int c, bool solo) { return open(c, solo) ? level(c) : 0.f; }
+	float heard(int c, bool solo) { return desk().heard(c, solo); }
 	/** The levels as the engine plays them, gliding to where the hand put
 	them (`Glide`), so a
 	stroke on a bar is no click in the sum. The bars show the levels. On
@@ -171,9 +185,24 @@ struct Mix : Gatherer<Mix, ROWS, ROWS + 1> {
 	for that sample's step, and rows arriving or leaving under a solo are a
 	wake, after which the tick is asked afresh. */
 	Glide levelGlide[ROWS + 1];
+	/** Under a moving signal I am on the tick for my bars, sample after
+	sample, with every glide standing where its row is heard, and asking
+	seventeen of them so was most of what the tick cost me. So the sample
+	that leaves them all standing keeps the params it read, every one, and
+	the rows a solo counts among; while both are as kept, bit for bit,
+	every row is heard as it was and a step would move nothing
+	(`Glide::rests`), so none is asked. */
+	static_assert(std::is_trivially_copyable<Param>::value, "a param is kept and compared as its bytes");
+	Param stoodOn[PARAMS_LEN];
+	int stoodRows = -1; // minus one: not known to stand
+	bool glidesStand() {
+		return stoodRows == srcN && std::memcmp(params.data(), stoodOn, sizeof stoodOn) == 0;
+	}
 	bool wantsTick() override {
 		if (Gatherer::wantsTick())
 			return true;
+		if (glidesStand())
+			return false;
 		const bool solo = soloing(srcN);
 		for (int c = 0; c <= ROWS; c++)
 			if (!levelGlide[c].rests(heard(c, solo)))
@@ -181,14 +210,29 @@ struct Mix : Gatherer<Mix, ROWS, ROWS + 1> {
 		return false;
 	}
 	float levelPlayed(int c, bool solo) { return clamp(levelGlide[c].played(heard(c, solo)), 0.f, 1.f); }
+	/** One sample of every glide, off the params as one copy holds them,
+	so what it steps toward and what it keeps are the same reading. A mute
+	or a solo glides to nothing and back as a stroke does, so it is no click
+	in the sum either. */
+	bool stepGlides(const ProcessArgs& args, bool land) {
+		Param read[PARAMS_LEN];
+		std::memcpy(read, params.data(), sizeof read);
+		const Desk d{read};
+		const bool solo = d.soloing(srcN);
+		bool glided = false, stand = true;
+		for (int c = 0; c <= ROWS; c++) {
+			const float heard = d.heard(c, solo);
+			glided |= levelGlide[c].step(heard, args.sampleRate, args.frame, land);
+			stand = stand && levelGlide[c].rests(heard);
+		}
+		stoodRows = stand ? srcN : -1;
+		if (stand)
+			std::memcpy(stoodOn, read, sizeof stoodOn);
+		return glided;
+	}
 	bool everySample(const ProcessArgs& args) override {
 		const bool land = landing();
-		const bool solo = soloing(srcN);
-		bool glided = false;
-		// A mute or a solo glides to nothing and back as a stroke does, so
-		// it is no click in the sum either.
-		for (int c = 0; c <= ROWS; c++)
-			glided |= levelGlide[c].step(heard(c, solo), args.sampleRate, args.frame, land);
+		const bool glided = !glidesStand() && stepGlides(args, land);
 		return Gatherer::everySample(args) || glided;
 	}
 

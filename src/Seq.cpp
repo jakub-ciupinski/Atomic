@@ -2697,8 +2697,11 @@ wake every sample. Plain fields, the engine's. */
 			return 0.0;
 		}
 		const bool fresh = c->source != rtFrom || c->resets != rtResets || w.starts != rtStarts;
+		// Before the count has measured a period there is no speed to give:
+		// divided by nought it would be infinite, and kept in `rtSpeedWas`
+		// it would make the next gap's turn infinite with it.
 		double speed = 0.0;
-		if (rateTurnOn) {
+		if (rateTurnOn && c->period > 0.0) {
 			int n, d;
 			setRatio.of(rateSetWork, n, d);
 			// Two to the jack's volts, asked of the library when they move:

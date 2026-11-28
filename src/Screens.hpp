@@ -458,8 +458,7 @@ struct RateScreen : ScreenParam {
 	int barJack = -1;
 	uint32_t barRGB = 0;
 	void step() override {
-		ModuleWidget* mw = barJack >= 0 ? getAncestorOfType<ModuleWidget>() : nullptr;
-		barRGB = mw ? cableColorOn(mw->getInput(barJack)) : 0;
+		barRGB = barJack >= 0 ? cableColorIn(module, barJack) : 0;
 		recordTyped();
 		ScreenParam::step();
 	}

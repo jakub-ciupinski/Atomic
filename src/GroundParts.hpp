@@ -7,6 +7,7 @@
 #include "Stack.hpp"
 #include <cstdint>
 #include <map>
+#include <type_traits>
 #include <typeinfo>
 #include <unordered_map>
 #include <utility>
@@ -492,22 +493,31 @@ a Qnt with a thirty-six row roll, is the same walk done some seventy times a
 frame, each walk itself proportional to the number of rows: the cost of a
 panel went up with the square of what was on it. The list is the same list
 every time, so it is made once and kept for the frame, keyed by the module it
-belongs to and thrown away whole when the frame moves. Nothing is read across
-frames, so a widget that has gone takes nothing with it. */
+belongs to. Nothing is read across frames: a list is made afresh the first
+time it is asked for in a frame. Only its room is kept, so that emptied and
+filled where it stands it asks the heap for nothing, where a new list for
+every module every frame asked four or five times each; and a widget going
+makes the frame a new one (`resetGroundMarks`), which throws every list away,
+so a widget that has gone takes nothing with it. */
 inline const std::vector<GroundRect>& groundOf(ModuleWidget* owner) {
-	static std::map<Widget*, std::vector<GroundRect> > byOwner;
-	static FrameId at;
-	const FrameId now = frameId();
-	if (now != at) {
-		at = now;
+	struct Kept {
+		FrameId at;
+		std::vector<GroundRect> all;
+	};
+	static std::map<Widget*, Kept> byOwner;
+	static uint64_t bumps = 0;
+	if (frameBumps() != bumps) {
+		bumps = frameBumps();
 		byOwner.clear();
 	}
-	std::map<Widget*, std::vector<GroundRect> >::iterator it = byOwner.find(owner);
-	if (it != byOwner.end())
-		return it->second;
-	std::vector<GroundRect>& all = byOwner[owner];
-	collectGround(owner, Vec(0.f, 0.f), all);
-	return all;
+	const FrameId now = frameId();
+	Kept& kept = byOwner[owner];
+	if (now != kept.at) {
+		kept.at = now;
+		kept.all.clear();
+		collectGround(owner, Vec(0.f, 0.f), kept.all);
+	}
+	return kept.all;
 }
 
 /** Where the undo history stands: how far it is done, how long it is, and
@@ -541,6 +551,14 @@ struct StepKey {
 	bool operator!=(const StepKey& o) const { return !(*this == o); }
 };
 
+/** How many times the runs have been worked out afresh, the drawing's or
+the hand's: what is kept about a run (`rigHeads`, Bracket.hpp, and
+`seatsOf`) is kept until this moves, so it lasts exactly as long as the run
+it was worked out from. */
+inline uint64_t& runsMade(bool asEngine = false) {
+	static uint64_t made[2] = {0, 0};
+	return made[asEngine ? 1 : 0];
+}
 /** The run a module stands in: everything of ours shoulder to shoulder with
 it, on the same row, left to right.
 
@@ -573,14 +591,20 @@ on. Both stop at a bypassed module, which stands in no run at all: a bypass
 splits the rig hard (`inRig`). */
 inline const std::vector<ModuleWidget*>* runOf(ModuleWidget* mine, bool asEngine = false) {
 	static std::vector<std::vector<ModuleWidget*>> byKind[2];
+	// Which run each module stands in, sorted by the module: a widget asks
+	// for its run a dozen times a frame, and looking through every run for
+	// it was a rack's worth of modules for each of a rack's worth.
+	static std::vector<std::pair<ModuleWidget*, size_t>> whereByKind[2];
 	static FrameId at[2];
 	static StepKey seen[2];
 	std::vector<std::vector<ModuleWidget*>>& runs = byKind[asEngine ? 1 : 0];
+	std::vector<std::pair<ModuleWidget*, size_t>>& where = whereByKind[asEngine ? 1 : 0];
 	const FrameId now = frameId();
 	const StepKey moved = StepKey::now();
 	if (now != at[asEngine ? 1 : 0] || moved != seen[asEngine ? 1 : 0]) {
 		at[asEngine ? 1 : 0] = now;
 		seen[asEngine ? 1 : 0] = moved;
+		runsMade(asEngine)++;
 		runs.clear();
 		std::vector<ModuleWidget*> ours;
 		Widget* container = APP->scene->rack->getModuleContainer();
@@ -606,11 +630,15 @@ inline const std::vector<ModuleWidget*>* runOf(ModuleWidget* mine, bool asEngine
 			runs.push_back(std::vector<ModuleWidget*>(ours.begin() + i, ours.begin() + j));
 			i = j;
 		}
+		where.clear();
+		for (size_t r = 0; r < runs.size(); r++)
+			for (ModuleWidget* mw : runs[r])
+				where.push_back(std::make_pair(mw, r));
+		std::sort(where.begin(), where.end());
 	}
-	for (const std::vector<ModuleWidget*>& run : runs)
-		if (std::find(run.begin(), run.end(), mine) != run.end())
-			return &run;
-	return nullptr;
+	const std::vector<std::pair<ModuleWidget*, size_t>>::const_iterator it =
+	    std::lower_bound(where.begin(), where.end(), std::make_pair(mine, (size_t)0));
+	return it != where.end() && it->first == mine ? &runs[it->second] : nullptr;
 }
 
 /** A RIG's molecule: every module of ours bonded to the right of `mine`, as
@@ -652,46 +680,89 @@ inline ModuleWidget* besideInRun(ModuleWidget* mine, int side) {
 	return it + 1 == run->end() ? nullptr : *(it + 1);
 }
 
+/** One place in the hand's run: the member standing there and the class it
+is, so a step that asks its run who stands in it reads a pointer where it
+cast every module. */
+struct Seat {
+	ModuleWidget* widget;
+	Member* member;
+	const std::type_info* type;
+	/** The member as a T, where a T it is. T is a module's own class, the
+	last of its line, so its type says whether it is one. */
+	template <class T>
+	T* as() const {
+		static_assert(std::is_final<T>::value, "a module's own class, with none made of it");
+		return *type == typeid(T) ? static_cast<T*>(member) : nullptr;
+	}
+};
+/** The hand's run of `mine` (`runOf`), seat by seat, left to right, or null
+where it stands in none. Worked out once for a run, under its first member,
+and kept while the runs stand (`runsMade`): every CV, Atn, CRV and gatherer
+asks its run who is in it every frame, and each asking was a walk of the run
+casting every module, the run's length squared. */
+inline const std::vector<Seat>* seatsOf(ModuleWidget* mine) {
+	static std::map<ModuleWidget*, std::vector<Seat>> seats; // by the run's first member
+	static uint64_t made = 0;
+	const std::vector<ModuleWidget*>* run = mine ? runOf(mine, true) : nullptr;
+	if (made != runsMade(true)) {
+		made = runsMade(true);
+		seats.clear();
+	}
+	if (!run)
+		return nullptr;
+	std::map<ModuleWidget*, std::vector<Seat>>::iterator it = seats.find(run->front());
+	if (it != seats.end())
+		return &it->second;
+	std::vector<Seat>& out = seats[run->front()];
+	out.reserve(run->size());
+	for (ModuleWidget* x : *run) {
+		Member* m = dynamic_cast<Member*>(x->module); // every one of the hand's run is one (`inRig`)
+		out.push_back({x, m, &typeid(*m)});
+	}
+	return &out;
+}
+
 /** The modules of kind T touching `me` in its run, it among them, left to
-right, as the engine has the block: walked along the hand's run (`runOf`),
+right, as the engine has the block: walked along the hand's run (`seatsOf`),
 never the expander links a stopped engine never forms, which ends at a
 bypassed module as the engine's rig does. `me` alone when it stands in no
 run. A CRV's block and a Trg's are this one walk. */
 template <class T>
 inline std::vector<T*> touchingOf(ModuleWidget* mine, T* me) {
-	std::vector<Module*> mods;
-	if (const std::vector<ModuleWidget*>* run = mine ? runOf(mine, true) : nullptr)
-		for (ModuleWidget* x : *run)
-			mods.push_back(x->module);
-	const int i = (int)(std::find(mods.begin(), mods.end(), (Module*)me) - mods.begin());
-	if (i >= (int)mods.size())
+	const std::vector<Seat>* run = seatsOf(mine);
+	const int n = run ? (int)run->size() : 0;
+	int i = 0;
+	while (i < n && (*run)[i].member != me)
+		i++;
+	if (i >= n)
 		return std::vector<T*>(1, me);
 	int lo = i, hi = i;
-	while (lo > 0 && dynamic_cast<T*>(mods[lo - 1]))
+	while (lo > 0 && (*run)[lo - 1].template as<T>())
 		lo--;
-	while (hi + 1 < (int)mods.size() && dynamic_cast<T*>(mods[hi + 1]))
+	while (hi + 1 < n && (*run)[hi + 1].template as<T>())
 		hi++;
 	std::vector<T*> out;
+	out.reserve(hi - lo + 1);
 	for (int k = lo; k <= hi; k++)
-		out.push_back(static_cast<T*>(mods[k]));
+		out.push_back(static_cast<T*>((*run)[k].member));
 	return out;
 }
 
 /** Whether another module of kind T stands anywhere in `me`'s run, none
 for a bypassed `me`, which stands in none: what a sweep can reach
 (`LevelParam::peersBetween`), for its hint piece. `sharesRun` asks it of
-a run already in hand, the engine's run of `me`'s panel. */
+a run already in hand, the seats of `me`'s panel. */
 template <class T>
-inline bool sharesRun(const std::vector<ModuleWidget*>* run, T* me) {
+inline bool sharesRun(const std::vector<Seat>* run, T* me) {
 	if (run)
-		for (ModuleWidget* x : *run)
-			if (x->module && x->module != me && dynamic_cast<T*>(x->module))
+		for (const Seat& x : *run)
+			if (x.member != me && x.template as<T>())
 				return true;
 	return false;
 }
 template <class T>
 inline bool sharesRunOf(ModuleWidget* mine, T* me) {
-	return sharesRun(mine && me ? runOf(mine, true) : nullptr, me);
+	return sharesRun(mine && me ? seatsOf(mine) : nullptr, me);
 }
 
 /** The same question asked by a widget about itself: what is above me in the

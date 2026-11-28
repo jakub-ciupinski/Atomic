@@ -52,7 +52,7 @@ struct RingQuantity : WithHint<SwitchQuantity> {
 	std::string getString() override;
 };
 
-struct Trg : Cartridge, Probe {
+struct Trg final : Cartridge, Probe {
 	MEMBER_FOOTPRINT
 	enum ParamId {
 		PULSE_PARAM,                            // alone, the rings pulse rather than toggle
@@ -172,7 +172,10 @@ struct Trg : Cartridge, Probe {
 	// `flash` for the screen, never loading what it stores.
 	float flashWork[TRG_RINGS] = {};
 	int flashLit = 0; // the rings whose flashWork is above nought, so asking costs one test
-	int bloomWork = 0; // the rings struck this wake, whose bloom the publish hands the screen
+	// The rings bloomed since the screens were last handed anything, struck
+	// by a Seq or risen on a cable: their `flashWork` is what the publish
+	// hands over.
+	tree::Latch<int> bloomed;
 
 	// Randomize rolls the rhythm, not the bar, the pulse or who sets the rings.
 	bool rolled(int p) override { return p != LEN_PARAM && p != PULSE_PARAM && p != OWN_PARAM; }
@@ -546,7 +549,7 @@ struct Trg : Cartridge, Probe {
 			if ((m >> c) & 1)
 				flashWork[c] = 1.f;
 		flashLit |= m;
-		bloomWork |= m;
+		bloomed.add(m);
 		fireRings(lane, sub < 0 ? m : at, until, began, again);
 	}
 	/** The rings' own jacks fired as the reader fires its own: a pulse on
@@ -697,10 +700,6 @@ struct Trg : Cartridge, Probe {
 	blink (`SHOW_FALL_SECONDS`, Pulse.hpp), where a ring lit only for the
 	millisecond the cable is high would hardly be seen. */
 	int cabledLit = 0;
-	/** The rings this wake's cable bloomed, handed the screen in the
-	publish and put down there, never in the clear: a field of my own wake
-	that a clear zeroed would be moved by a wake that left me out. */
-	int roseWork = 0;
 	void prepare(const Sealed& win, const ProcessArgs& args) override {
 		ringInWork = ringsIn();
 		// A trigger on a ring's own cable is a press of the ring: toggling, it flips the ring,
@@ -719,7 +718,7 @@ struct Trg : Cartridge, Probe {
 					pulsingWork |= 1 << c;
 					flashWork[c] = 1.f;
 					flashLit |= 1 << c;
-					roseWork |= 1 << c;
+					bloomed.add(1 << c);
 				}
 			}
 		// The converter: a rise on a channel of IN fires that ring as a
@@ -733,7 +732,7 @@ struct Trg : Cartridge, Probe {
 					pulsingWork |= 1 << c;
 					flashWork[c] = 1.f;
 					flashLit |= 1 << c;
-					roseWork |= 1 << c;
+					bloomed.add(1 << c);
 				}
 		maskWork = mask(ringInWork);
 		// Converting, a gate's rise has bloomed as its trigger above, and its
@@ -745,7 +744,7 @@ struct Trg : Cartridge, Probe {
 			if ((rose >> c) & 1)
 				flashWork[c] = 1.f;
 		flashLit |= rose;
-		roseWork |= rose;
+		bloomed.add(rose);
 	}
 	/** OUT, and the rings' own jacks: alone, a ring's jack is its channel
 	of OUT, gate or pulse; in a block it is high only while a reader's
@@ -804,7 +803,6 @@ struct Trg : Cartridge, Probe {
 		Cartridge::clearReads();
 		headsWork = Heads();
 		lastReadLane = lastReadHead = -1;
-		bloomWork = 0;
 	}
 	void publishReads() override {
 		Cartridge::publishReads();
@@ -815,10 +813,10 @@ struct Trg : Cartridge, Probe {
 		headsPacked.store(headsWork.bits, std::memory_order_relaxed);
 		fedMaskNow.store(fedMask, std::memory_order_relaxed);
 		ringInNow.store(ringInWork, std::memory_order_relaxed);
-		for (int c = 0; c < TRG_RINGS; c++)
-			if (((bloomWork | roseWork) >> c) & 1)
+		const int blooms = bloomed.take();
+		for (int c = 0; blooms >> c; c++)
+			if ((blooms >> c) & 1)
 				flash[c].store(flashWork[c], std::memory_order_relaxed);
-		roseWork = 0;
 	}
 	/** A playhead standing on me: packed as a ring and colour pair, nearest
 	Seq first since the nearest writes first. */
@@ -1807,7 +1805,7 @@ struct TrgWidget : MemberWidget {
 					RingPlugFace::lay(j);
 			}
 		if (gate) {
-			gate->inRGB.store(cableColorOn(getInput(Trg::IN_INPUT)), std::memory_order_relaxed);
+			gate->inRGB.store(cableColorIn(module, Trg::IN_INPUT), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this);
 			gate->bondedUi.store(run && run->size() > 1, std::memory_order_relaxed);
 		}

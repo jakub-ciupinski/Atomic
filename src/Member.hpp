@@ -193,6 +193,15 @@ struct Recaller {
 	}
 };
 
+#ifdef ATOMIC_DEV
+/** The last frame of the block being stepped, said by the headless tests,
+which step the rigs themselves with no engine to ask (`blockEnds`,
+Engine.cpp); a thread's own, since their rows step on several threads, and
+read only where there is no engine. Minus one, as it starts: every sample
+ends a block. */
+extern thread_local int64_t blockLast;
+#endif
+
 /** What only the host of a rig holds: the rig it computes, re-derived when
 the topology epoch moves, the same members as the tree sees them, the watch
 table and the tick list. A module makes one on the first sample it hosts and
@@ -200,6 +209,8 @@ drops it the moment it stops, so no other member carries any of it, and its
 sample is `sample` (Engine.cpp). */
 struct Host {
 	bool ran = false;       // computed at least once
+	int64_t wokeAt = -2;    // the frame of the last wake, for a wake on the sample after it (`late`)
+	bool looksOwed = false; // the last wake was late: its nodes owe the screens a look
 	bool fineStale = true;  // a node's `fine` has moved since the fine group was worked out (`tree::evaluate` says so)
 	std::vector<Member*> members;
 	std::vector<tree::Node*> nodes;
@@ -249,9 +260,10 @@ struct Host {
 	tree, and what the bracket asks of it. */
 	void bond(Member* self);
 	/** The watch table, written at bond and whenever a cable moves, and the
-	tick list, asked afresh after every wake. */
+	tick list, asked after every wake: of every member (`all`), or of
+	those whose code ran on this sample. */
 	void buildWatch();
-	void retick();
+	void retick(bool all);
 	/** One sample of the rig: the sweep, and the wake if anything moved. */
 	void sample(const Module::ProcessArgs& args, bool slow);
 	/** The bracket's SYNC: whether the walks stand off the line, told the
@@ -420,9 +432,12 @@ struct Member : Module, JackGlow, tree::Node {
 
 	/** Does this module have work of its own to do on every sample, whatever
 	else the rig is doing: a clock's ramp, a glide, a pulse ending, a
-	light fading. It is asked afresh after every wake and on every control
-	period, so a clock that is stopped leaves the list and an idle patch
-	costs an empty loop. It is NOT a claim about speed: every module behaves
+	light fading. It is asked afresh on every control period and at a new
+	table, and after any other wake of the members whose code ran on that
+	sample (`Host::retick`), so a clock that is stopped leaves the list and
+	an idle patch costs an empty loop. So the answer is made of my own
+	state and nothing else: what moves it with none of my code running, a
+	cable arriving or a knob under a hand, is the table's to find. It is NOT a claim about speed: every module behaves
 	as though its inputs could move at audio rate, and this asks only whether
 	there is state inside that moves without them. */
 	virtual bool wantsTick() { return false; }
@@ -546,6 +561,9 @@ struct Member : Module, JackGlow, tree::Node {
 	}
 
 	void process(const ProcessArgs& args) override; // Engine.cpp
+	/** My sample where I host a rig or the topology has moved, kept out of
+	`process` so that every other member's is a few instructions. */
+	__attribute__((noinline)) void hostOrMoved(const ProcessArgs& args);
 
 	/** The tooltips, rewritten for what the module is now: asked by its
 	widget every frame, on the UI thread, so a module that is three things by

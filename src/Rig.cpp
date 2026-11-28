@@ -251,11 +251,36 @@ std::string placedPath(const std::string& path) {
 	return p;
 }
 /** Whether the placed path `p` is the canonical folder `d` or stands inside
-it; either empty is outside, a folder not on disk holding nothing. */
+it; either empty is outside, a folder not on disk holding nothing. A root,
+"/" or a Windows drive's "D:/", is the one canonical folder that ends in its
+separator. */
 bool inside(const std::string& p, const std::string& d) {
 	if (p.empty() || d.empty())
 		return false;
-	return p == d || (p.size() > d.size() && p.compare(0, d.size(), d) == 0 && (p[d.size()] == '/' || p[d.size()] == '\\'));
+	if (p == d)
+		return true;
+	if (p.size() <= d.size() || p.compare(0, d.size(), d) != 0)
+		return false;
+	return d.back() == '/' || p[d.size()] == '/' || p[d.size()] == '\\';
+}
+/** Rack's own file dialog asked for a path, empty when it is cancelled. The
+answer is written as Rack writes every path it hands out
+(`system::getEntries`, `asset::user`), with forward slashes: on Windows the
+dialog answers with backslashes, and a rig's file is compared as a string
+with the paths of its folder's walk. */
+std::string askDialog(osdialog_file_action action, const std::string& dir, const char* name, bool rigs) {
+	osdialog_filters* filters = rigs ? osdialog_filters_parse("Atomic rig (.vcvs):vcvs") : nullptr;
+	char* answer = osdialog_file(action, dir.c_str(), name, filters);
+	if (filters)
+		osdialog_filters_free(filters);
+	if (!answer)
+		return std::string();
+	std::string path = answer;
+	std::free(answer);
+#if defined ARCH_WIN
+	std::replace(path.begin(), path.end(), '\\', '/');
+#endif
+	return path;
 }
 /** Whether `path` is `dir` or stands anywhere inside it. */
 bool within(const std::string& path, const std::string& dir) {
@@ -1691,13 +1716,9 @@ struct RigWidget : MemberWidget {
 		std::string path = takeAnswer();
 		const bool asked = path.empty();
 		if (asked) {
-			osdialog_filters* filters = osdialog_filters_parse("Atomic rig (.vcvs):vcvs");
-			char* pathC = osdialog_file(OSDIALOG_SAVE, dir.c_str(), name.c_str(), filters);
-			osdialog_filters_free(filters);
-			if (!pathC)
+			path = askDialog(OSDIALOG_SAVE, dir, name.c_str(), true);
+			if (path.empty())
 				return;
-			path = pathC;
-			std::free(pathC);
 		}
 		if (withinFactory(path)) {
 			WARN("RIG: refused a save into the factory's folder, %s", path.c_str());
@@ -1716,11 +1737,9 @@ struct RigWidget : MemberWidget {
 		std::string path = takeAnswer();
 		if (path.empty()) {
 			const std::string dir = system::isDirectory(userFolder()) ? userFolder() : asset::user("");
-			char* pathC = osdialog_file(OSDIALOG_OPEN_DIR, dir.c_str(), nullptr, nullptr);
-			if (!pathC)
+			path = askDialog(OSDIALOG_OPEN_DIR, dir, nullptr, false);
+			if (path.empty())
 				return;
-			path = pathC;
-			std::free(pathC);
 		}
 		if (withinFactory(path)) {
 			WARN("RIG: the factory's folder cannot be the user folder");
@@ -1758,13 +1777,9 @@ struct RigWidget : MemberWidget {
 			std::string dir = stepDir();
 			if (!system::isDirectory(dir))
 				dir = asset::user("");
-			osdialog_filters* filters = osdialog_filters_parse("Atomic rig (.vcvs):vcvs");
-			char* pathC = osdialog_file(OSDIALOG_OPEN, dir.c_str(), nullptr, filters);
-			osdialog_filters_free(filters);
-			if (!pathC)
+			path = askDialog(OSDIALOG_OPEN, dir, nullptr, true);
+			if (path.empty())
 				return;
-			path = pathC;
-			std::free(pathC);
 		}
 		if (isRigFile(path))
 			load(path);
@@ -2007,7 +2022,7 @@ struct RigWidget : MemberWidget {
 				if (o->module)
 					rig->live.insert(o->module->id);
 			rig->liveKnown = true;
-			rig->sceneRGB.store(cableColorOn(getInput(Rig::SCENE_INPUT)), std::memory_order_relaxed);
+			rig->sceneRGB.store(cableColorIn(module, Rig::SCENE_INPUT), std::memory_order_relaxed);
 			// A place shown, a rig loaded or saved, at once; else now and
 			// then, the disk being read.
 			if (placesStale())

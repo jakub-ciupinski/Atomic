@@ -65,7 +65,7 @@ struct ValueQuantity : WithHint<PitchFieldQuantity> {
 	bool typedOver = false;
 };
 
-struct CV : Cartridge, Probe {
+struct CV final : Cartridge, Probe {
 	MEMBER_FOOTPRINT
 	enum ParamId {
 		VALUE_PARAM,
@@ -1090,7 +1090,7 @@ struct CVWidget : MemberWidget {
 	/** What only the UI knows of my colour: the cable arriving and the bond. */
 	void step() override {
 		if (fader) {
-			fader->inRGB.store(cableColorOn(getInput(CV::IN_INPUT)), std::memory_order_relaxed);
+			fader->inRGB.store(cableColorIn(module, CV::IN_INPUT), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this);
 			fader->bondedUi.store(run && run->size() > 1, std::memory_order_relaxed);
 			fader->peersUi.store(touchingOf(this, fader).size() > 1, std::memory_order_relaxed);

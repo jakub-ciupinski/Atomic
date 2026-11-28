@@ -42,10 +42,10 @@ template <class G>
 inline void glowRowCable(G* g, ModuleWidget* mw, int c) {
 	if (!g || !mw || !relaxed(g->fromJackNow) || c < 0 || c >= std::min(relaxed(g->srcNNow), GATHER_MAX))
 		return;
-	const std::vector<CableWidget*> cables = stackCables(mw->getInput(G::IN_INPUT));
+	const Stacked cables = stackCables(mw->module, G::IN_INPUT);
 	const int k = relaxed(g->stackedNow) ? (int)((relaxed(g->cablesNow) >> (4 * c)) & 0xf) : 0;
-	if (k < (int)cables.size())
-		glowCable(cables[k]);
+	if (k < cables.n)
+		glowCable(cables.at[k]->id);
 }
 
 /** The row of a gatherer the pointer is on, whatever the hand is doing,
@@ -373,15 +373,15 @@ struct GatheredBy {
 };
 inline GatheredBy gatheredBy(ModuleWidget* me) {
 	GatheredBy by;
-	const std::vector<ModuleWidget*>* run = runOf(me, true);
+	const std::vector<Seat>* run = seatsOf(me);
 	if (!run || !me->module)
 		return by;
 	const int64_t id = me->module->id;
-	auto at = std::find(run->begin(), run->end(), me);
+	auto at = std::find_if(run->begin(), run->end(), [&](const Seat& s) { return s.widget == me; });
 	for (auto it = at == run->end() ? at : at + 1; it != run->end(); ++it) {
-		Member* m = dynamic_cast<Member*>((*it)->module);
-		GatherReads* g = dynamic_cast<GatherReads*>((*it)->module);
-		if (!m || !g)
+		Member* m = it->member;
+		GatherReads* g = dynamic_cast<GatherReads*>(m);
+		if (!g)
 			continue;
 		const int rows = std::min(relaxed(g->srcNNow), GATHER_MAX);
 		for (int r = 0; r < rows; r++)
@@ -479,7 +479,7 @@ struct GatherWidget : MemberWidget {
 	GatherLayout face;
 	Body* body = nullptr;
 	void step() override {
-		if (gatherer && publishStack(gatherer->stack, getInput(M::IN_INPUT)))
+		if (gatherer && publishStack(gatherer->stack, gatherer, M::IN_INPUT))
 			gatherer->wake();
 		face.lay(stripShown(gatherer));
 		MemberWidget::step();

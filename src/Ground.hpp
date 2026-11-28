@@ -47,33 +47,51 @@ inline void paintShape(NVGcontext* vg, const RunPicture& pic, const GroundRect& 
 	paintGround(vg, s.r, s.radius, s.col, s.lip && onPlate(pic.all, s.r), s.r.pos.y, s.lip && s.depth == shallowest);
 }
 inline const RunPicture& runPicture(ModuleWidget* me) {
-	static std::map<ModuleWidget*, RunPicture> pictures; // by the run's first member
-	static FrameId at;
-	const FrameId now = frameId();
-	if (now != at) {
-		at = now;
+	// Made afresh the first time it is asked for in a frame, in the room the
+	// last frame's lists left, as `groundOf` keeps a module's.
+	struct Kept {
+		FrameId at;
+		RunPicture pic;
+	};
+	static std::map<ModuleWidget*, Kept> pictures; // by the run's first member
+	static uint64_t bumps = 0;
+	if (frameBumps() != bumps) {
+		bumps = frameBumps();
 		pictures.clear();
 	}
+	const FrameId now = frameId();
 	const std::vector<ModuleWidget*>* run = runOf(me);
 	ModuleWidget* front = run && !run->empty() ? run->front() : me;
-	std::map<ModuleWidget*, RunPicture>::iterator it = pictures.find(front);
-	if (it != pictures.end())
-		return it->second;
-	RunPicture& pic = pictures[front];
+	Kept& kept = pictures[front];
+	RunPicture& pic = kept.pic;
+	if (!(now != kept.at))
+		return pic;
+	kept.at = now;
+	pic.all.clear();
+	pic.shapes.clear();
 	if (run && !run->empty())
 		pic.members = *run;
 	else
-		pic.members.push_back(me);
+		pic.members.assign(1, me);
 	pic.w = pic.members.back()->box.pos.x + pic.members.back()->box.size.x - front->box.pos.x;
+	// The hash is the tiles' alone, how one knows its picture has changed
+	// (`Tile::current`), so it is worked out only while they are on: every
+	// byte of every piece of every run, every frame, for nobody otherwise.
+	const DevSwitches& d = dev();
+	const bool hashed = d.tiles;
 	uint64_t h = 1469598103934665603ull;
 	for (ModuleWidget* m : pic.members) {
 		const std::vector<GroundRect>& his = groundOf(m);
 		const float dx = m->box.pos.x - front->box.pos.x;
-		h = hashOf(h, m);
-		h = hashOf(h, dx);
+		if (hashed) {
+			h = hashOf(h, m);
+			h = hashOf(h, dx);
+		}
 		for (GroundRect b : his) {
 			b.r.pos.x += dx;
 			pic.all.push_back(b);
+			if (!hashed)
+				continue;
 			h = hashOf(h, b.depth);
 			h = hashOf(h, b.r);
 			h = hashOf(h, b.radius);
@@ -82,7 +100,6 @@ inline const RunPicture& runPicture(ModuleWidget* me) {
 		}
 	}
 	// The switches change the picture too.
-	const DevSwitches& d = dev();
 	const int sw = (d.statics ? 1 : 0) | (d.staticLit ? 2 : 0) | (d.bracket ? 4 : 0) |
 	               (d.ground ? 8 : 0);
 	h = hashOf(h, sw);
@@ -124,7 +141,8 @@ inline const RunPicture& runPicture(ModuleWidget* me) {
 	// the join, painted under everything of its depth, so the column is
 	// covered whole and both faces lie over it. Found before any shape
 	// reaches, on the joins as they stand.
-	std::vector<GroundRect> fillers;
+	static std::vector<GroundRect> fillers; // its room kept too
+	fillers.clear();
 	for (const GroundRect& s : pic.shapes)
 		for (const GroundRect& t : pic.shapes) {
 			if (&s == &t || s.depth != t.depth || std::fabs(t.r.pos.x - (s.r.pos.x + s.r.size.x)) >= 0.5f)
@@ -153,17 +171,25 @@ inline const RunPicture& runPicture(ModuleWidget* me) {
 			const bool within = s.r.pos.y >= t.r.pos.y - 0.01f &&
 			                    s.r.pos.y + s.r.size.y <= t.r.pos.y + t.r.size.y + 0.01f;
 			const bool same = std::fabs(s.r.pos.y - t.r.pos.y) < 0.01f && std::fabs(s.r.size.y - t.r.size.y) < 0.01f;
+			if (!within)
+				continue;
+			// Whether the two meet is asked first, being two subtractions
+			// where the line is a look through every piece of the run.
+			const bool right = std::fabs(t.r.pos.x - (s.r.pos.x + s.r.size.x)) < 0.5f;
+			const bool left = !right && !same && std::fabs(s.r.pos.x - (t.r.pos.x + t.r.size.x)) < 0.5f;
+			if (!right && !left)
+				continue;
 			// Not where the line cast above me would reach over the other's
 			// face: a taller neighbour's top stands above mine. Only a line
 			// that is cast, though: a screen standing on another screen, a
 			// Seq's second under its first, casts none, and holding it back
 			// for the line it might have cast left the column it shares with
 			// a CV beside it half covered by each, with the plate between.
-			if (!within || (s.lip && onPlate(pic.all, s.r) && std::fabs(s.r.pos.y - t.r.pos.y) > 0.01f))
+			if (s.lip && std::fabs(s.r.pos.y - t.r.pos.y) > 0.01f && onPlate(pic.all, s.r))
 				continue;
-			if (std::fabs(t.r.pos.x - (s.r.pos.x + s.r.size.x)) < 0.5f)
+			if (right)
 				s.r.size.x += BLEED; // t on my right
-			else if (!same && std::fabs(s.r.pos.x - (t.r.pos.x + t.r.size.x)) < 0.5f) {
+			else {
 				s.r.pos.x -= BLEED; // t on my left, and taller
 				s.r.size.x += BLEED;
 				s.reachesLeft = true;

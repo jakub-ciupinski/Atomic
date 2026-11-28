@@ -677,11 +677,11 @@ struct AtnWidget : MemberWidget {
 	in its own jack's. */
 	void step() override {
 		if (atn) {
-			atn->cableRGB.store(cableColorOn(getInput(Atn::IN_INPUT)), std::memory_order_relaxed);
-			atn->vcaRGB.store(cableColorOn(getInput(Atn::VCA_INPUT)), std::memory_order_relaxed);
-			atn->ofsRGB.store(cableColorOn(getInput(Atn::OFS_CV_INPUT)), std::memory_order_relaxed);
+			atn->cableRGB.store(cableColorIn(module, Atn::IN_INPUT), std::memory_order_relaxed);
+			atn->vcaRGB.store(cableColorIn(module, Atn::VCA_INPUT), std::memory_order_relaxed);
+			atn->ofsRGB.store(cableColorIn(module, Atn::OFS_CV_INPUT), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this, true);
-			atn->sweepUi.store(sharesRun(run, atn), std::memory_order_relaxed);
+			atn->sweepUi.store(sharesRunOf(this, atn), std::memory_order_relaxed);
 			bond(run);
 			arrow->visible = arrow->shown();
 			rightArrow->visible = rightArrow->shown();

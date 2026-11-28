@@ -88,8 +88,7 @@ struct HeadScreen : Screen {
 	int barJack = -1;
 	uint32_t barRGB = 0;
 	void step() override {
-		ModuleWidget* mw = barJack >= 0 ? getAncestorOfType<ModuleWidget>() : nullptr;
-		barRGB = mw ? cableColorOn(mw->getInput(barJack)) : 0;
+		barRGB = barJack >= 0 ? cableColorIn(seq, barJack) : 0;
 		Screen::step();
 	}
 

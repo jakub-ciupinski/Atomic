@@ -15,6 +15,21 @@ endif
 # SDK's own flags, so these win.
 EXTRA_CXXFLAGS += -std=c++17
 
+# The SDK's compile.mk builds every plugin at -O3 -funsafe-math-optimizations.
+# Two of the liberties that flag takes, reassociating a sum and turning a
+# division into a multiplication by a reciprocal, move a result by its last
+# bit, and where a count or an edge is decided at a near tie (a phase of +10 V
+# landing on the last step, 24 PPQN counting a beat, a whole-step turn) that
+# bit decides it the other way: the sim at the SDK's flags alone fails 14 of
+# its checks, at either of these two alone still 7 or 3, at both none. The
+# rest of the flag (no signed zeros, no trapping) stays, as does -O3. Without
+# reassociation the compiler no longer splits a long sum into vectors by
+# itself, so a hot one is written in lanes (Decimate4 in Blep.hpp). Every
+# platform alike, release and dev, the tools too. The sim builds at exactly the
+# flags this ends with (`make shipped-flags`, read by sim/flags.sh), so the
+# sim and the plugin cannot part again.
+EXTRA_FLAGS += -fno-associative-math -fno-reciprocal-math
+
 # Everything below is for a mac target, chosen by the target the SDK's arch.mk
 # works out (CROSS_COMPILE, else the compiler's own), never by the host, so a
 # Windows or Linux build made on a Mac gets the SDK's own flags untouched.

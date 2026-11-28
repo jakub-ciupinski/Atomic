@@ -502,7 +502,10 @@ the hover, while cables are stacked in IN. */
 					srcV[c] = got[c];
 					srcCol[c] = col;
 					srcRgb[c] = rgb;
-					srcKind[c] = faceOf(m);
+					// Its kind is the gathering's: the parse took into the
+					// chain only what wore it (`groupsOf`), and a face is
+					// the parse's, so no member is asked it again.
+					srcKind[c] = kindWork;
 					srcId[c] = m->id;
 				}
 				srcN = std::min(srcN + k, ROWS);
@@ -594,7 +597,7 @@ the hover, while cables are stacked in IN. */
 	(`seeLevels`), so a gatherer over a still rig leaves the list as a stopped
 	Clock does. */
 	bool wantsTick() override { return stacked || !barsRest; }
-	HeldSpan held[BARS];
+	HeldSpans<BARS> held;
 	bool barsRest = false; // the last look left every bar on its level, and no wake has seen one since
 	/** A bar's level: a row a source, the ones left out of the jack too, so
 	a row keeps its level whether it is in or out. `k` is the wake's count,
@@ -606,8 +609,10 @@ the hover, while cables are stacked in IN. */
 	float meterLevel(int c, int k) { return c < k ? srcV[c] : 0.f; }
 	/** Every bar's level as this wake leaves it, for the next look. */
 	void seeLevels() {
+		alignas(16) float level[HeldSpans<BARS>::LANES] = {};
 		for (int c = 0; c < BARS; c++)
-			held[c].see(barLevel(c));
+			level[c] = barLevel(c);
+		held.see(level);
 		barsRest = false;
 	}
 	/** Stacked cables are read one by one, and the row is woken by the
@@ -618,12 +623,14 @@ the hover, while cables are stacked in IN. */
 		if (args.frame % CONTROL_PERIOD)
 			return wake;
 		const float dt = (float)CONTROL_PERIOD * args.sampleTime;
+		float level[BARS];
+		for (int c = 0; c < BARS; c++)
+			level[c] = barLevel(c);
+		held.look(level, dt, 10.f);
 		bool rest = true;
 		for (int c = 0; c < BARS; c++) {
-			const float level = barLevel(c);
-			held[c].look(level, dt, 10.f);
-			shown[c].store(held[c].packed(), std::memory_order_relaxed);
-			rest = rest && held[c].rests(level, 10.f);
+			shown[c].store(held.packed(c), std::memory_order_relaxed);
+			rest = rest && held.rests(c, level[c], 10.f);
 		}
 		barsRest = rest;
 		return wake;

@@ -485,19 +485,94 @@ inline std::string patternName(uint16_t bits) {
 
 
 
+/** A pitch's place in the pattern: its octave's word and its key in that
+word, the one thing a search of the pattern asks of a pitch. */
+struct KeyPlace {
+	int o = 0, b = 0;
+};
+/** One octave, a scale, has the one word, and the key is the pitch class, a
+multiplication away; a keyboard's place waits on a division by its period,
+which a search made once a voice a sample feels. With no octaves the first
+key, as `keyOf` has it. */
+inline KeyPlace placeOf(const Scale& sc, int semis) {
+	if (sc.octaves == 1)
+		return {0, eucMod(semis, 12)};
+	const int key = sc.keyOf(semis);
+	return {key / 12, key % 12};
+}
+/** The place of the key over one, the period going round. */
+inline KeyPlace placeOver(const Scale& sc, KeyPlace at) {
+	if (at.b < 11)
+		return {at.o, at.b + 1};
+	return {at.o + 1 < sc.octaves ? at.o + 1 : 0, 0};
+}
+/** How many keys down from a place the pattern's nearest key stands, the
+place itself at nought and the period going round; the period where no key is
+on. Read off the bits, an octave's word at a look, where a walk asked every
+key in turn and divided for each: with `keysUpFrom`, the one search every
+snap is made of. The key's own place goes to `found` where one is asked for
+and a key is on: the search stood on it, so whoever lights the key or reads
+its cents need not divide for it again. */
+inline int keysDownFrom(const Scale& sc, KeyPlace at, KeyPlace* found = nullptr) {
+	if (sc.octaves <= 0)
+		return 0;
+	// My own octave's keys at or below me, then each octave under it whole,
+	// the last of them my own again, whose keys left are the ones above me.
+	unsigned bits = sc.oct[at.o] & (0xfffu >> (11 - at.b));
+	if (bits) {
+		const int b = 31 - __builtin_clz(bits);
+		if (found)
+			*found = {at.o, b};
+		return at.b - b;
+	}
+	int o = at.o, d = at.b + 1;
+	for (int i = 0; i < sc.octaves; i++, d += 12) {
+		o = o > 0 ? o - 1 : sc.octaves - 1;
+		bits = sc.oct[o] & 0xfff;
+		if (bits) {
+			const int b = 31 - __builtin_clz(bits);
+			if (found)
+				*found = {o, b};
+			return d + 11 - b;
+		}
+	}
+	return sc.period();
+}
+/** And how many keys up. */
+inline int keysUpFrom(const Scale& sc, KeyPlace at, KeyPlace* found = nullptr) {
+	if (sc.octaves <= 0)
+		return 0;
+	unsigned bits = (sc.oct[at.o] & 0xfffu) >> at.b;
+	if (bits) {
+		const int up = __builtin_ctz(bits);
+		if (found)
+			*found = {at.o, at.b + up};
+		return up;
+	}
+	int o = at.o, d = 12 - at.b;
+	for (int i = 0; i < sc.octaves; i++, d += 12) {
+		o = o + 1 < sc.octaves ? o + 1 : 0;
+		bits = sc.oct[o] & 0xfff;
+		if (bits) {
+			const int b = __builtin_ctz(bits);
+			if (found)
+				*found = {o, b};
+			return d + b;
+		}
+	}
+	return sc.period();
+}
+
 /** The nearest semitone in `scale`, `semis` itself if it is, the higher of
 two at the same distance. */
 inline int snapToScale(int semis, const Scale& scale) {
-	if (!scale.any())
+	const KeyPlace at = placeOf(scale, semis);
+	const int up = keysUpFrom(scale, at), down = keysDownFrom(scale, at);
+	// With no key on, a roll whose one note is its top C among them, the
+	// pitch as it came.
+	if (up >= scale.period())
 		return semis;
-	for (int d = 0; d <= scale.period(); d++) {
-		for (int sgn : {+1, -1}) {
-			int k = semis + sgn * d;
-			if (scale.has(k))
-				return k;
-		}
-	}
-	return semis;
+	return up <= down ? semis + up : semis - down;
 }
 
 // ---- One pitch space. Every path that moves a note by an Atn's offset asks
@@ -512,18 +587,64 @@ C4. Whole semitones in and out: a pitch that is a count is an integer before
 it gets here, a float meant to be whole being no count (-12.000001 for a
 -12 has been met here). */
 inline int noteAtOrBelow(int k, const Scale& scale) {
-	for (int d = 0; d < scale.period(); d++, k--)
-		if (scale.has(k))
-			break;
-	return k;
+	return k - keysDownFrom(scale, placeOf(scale, k));
 }
 /** And the lowest at or above. */
 inline int noteAtOrAbove(int k, const Scale& scale) {
-	for (int d = 0; d < scale.period(); d++, k++)
-		if (scale.has(k))
-			break;
-	return k;
+	return k + keysUpFrom(scale, placeOf(scale, k));
 }
+
+/** A note a pitch was snapped to and the row that lights for it: its key of
+the pattern in force, a roll's top C the slot kept for it (`Scale::rowOf`),
+and none, -1, for a note that is nobody's (`Scale::holds`). */
+struct Snapped {
+	int note = 0, row = -1;
+};
+/** The two notes of a pattern a pitch stands between, the one at or below
+its whole semitone `k` and the first over it, each with its key: all a snap
+asks of the pattern, and the same for every pitch between the two, so a
+voice that keeps its last one (`nearestNote`) searches again only when its
+pitch has left it. `keyed` is whether a key is on at all; a span as it is
+made holds no pitch. */
+struct KeySpan {
+	int below = 0, above = 0, keyBelow = 0, keyAbove = 0;
+	bool keyed = false;
+	/** Whether a pitch of whole semitone `k` stands in it: two compares of
+	integers, which is all a pitch moving slowly over the pattern costs. */
+	bool holds(int k) const { return k >= below && k < above; }
+};
+inline KeySpan spanOf(const Scale& scale, int k) {
+	// No note stands between the one below and the pitch, so the first over
+	// the one below is the first over the pitch: the two searches wait on
+	// nothing of each other, and the place is found once. With no key on,
+	// the walk up came round to the semitone over the pitch.
+	const int p = scale.period();
+	const KeyPlace at = placeOf(scale, k);
+	KeyPlace under, over;
+	const int down = keysDownFrom(scale, at, &under), up = keysUpFrom(scale, placeOver(scale, at), &over);
+	KeySpan span;
+	span.below = k - down;
+	span.above = k + 1 + (up < p ? up : 0);
+	span.keyBelow = 12 * under.o + under.b;
+	span.keyAbove = 12 * over.o + over.b;
+	span.keyed = up < p;
+	return span;
+}
+/** The nearer of a span's two notes, the upper at a dead tie. */
+inline Snapped nearestOf(const KeySpan& span, float semis) {
+	return semis - (float)span.below < (float)span.above - semis ? Snapped{span.below, span.keyBelow}
+	                                                             : Snapped{span.above, span.keyAbove};
+}
+
+/** How far from C4 a pitch is snapped, in semitones either way, two to the
+24th, about 1.4 million volts: past it every float is a whole semitone
+already, so nothing is left to snap, and inside it a pitch's semitone is an
+int with the reach of every search (a span, a transpose by degrees) to spare.
+A pitch beyond it, an infinity among them, is snapped at it; past the int's
+range the conversion would be undefined and differ by platform. A NaN is
+stopped before it comes here (`sane`), where it means nought volts; clamped,
+it would be the top. */
+const float SNAP_REACH = 16777216.f;
 
 /** The note of `scale` nearest a pitch, in semitones from C4: the boundary
 exactly halfway between two neighbouring notes and the upper one at a dead
@@ -533,9 +654,8 @@ snapped, 0.6 of a semitone over the white keys goes to C sharp and up to D, a
 note further away than C. Fundamental's Quantizer rounds first, and takes the
 lower at that tie. */
 inline int nearestInScale(float semis, const Scale& scale) {
-	const int below = noteAtOrBelow((int)std::floor(semis), scale);
-	const int above = noteAtOrAbove(below + 1, scale);
-	return semis - (float)below < (float)above - semis ? below : above;
+	semis = clamp(semis, -SNAP_REACH, SNAP_REACH);
+	return nearestOf(spanOf(scale, (int)std::floor(semis)), semis).note;
 }
 
 /** The pattern's own root: the first note of it from C4 up, which is what a
@@ -544,10 +664,8 @@ transposes by 0, 7, 12, 19; a pattern of D alone has its root on D and
 transposes by octaves, since those are the only intervals it holds. Without
 it a transposition of nought would snap to whatever note lay below C4. */
 inline int scaleRoot(const Scale& scale) {
-	for (int k = scale.base; k < scale.base + scale.period(); k++)
-		if (scale.has(k))
-			return k;
-	return 0;
+	const int up = keysUpFrom(scale, placeOf(scale, scale.base));
+	return up < scale.period() ? scale.base + up : 0;
 }
 
 /** A transposition in semitones landed on the pattern: the intervals the
@@ -725,11 +843,37 @@ inline int nearestSpread(const Scale& s, float semis) {
 /** The note a scale snaps a pitch to, in whole semitones from C4: a roll's
 nearest, a keyboard's nearest moved by its transpose by degrees
 (`degreeMoved`), else the pitch rounded. The one rule a Qnt's own cable and a
-reader's cable through it (`quantStage`) are snapped by. */
-inline int nearestNote(const Scale& sc, float semis) {
-	return sc.spread && sc.any() ? nearestSpread(sc, semis)
-	       : sc.any()            ? degreeMoved(sc, nearestInScale(semis, sc))
-	                             : wholeOf(semis);
+reader's cable through it (`quantStage`) are snapped by, handed back with the
+row it lights. `span` is the caller's to keep from one pitch to the next of
+the same voice on the same scale, and to start afresh (`KeySpan()`) when the
+scale is made again: a keyboard's search is made only for a pitch outside it,
+and the note is weighed between its two by the same arithmetic either way. */
+inline Snapped nearestNote(const Scale& sc, float semis, KeySpan& span) {
+	const auto rowed = [&](int note) { return Snapped{note, sc.holds(note) ? sc.rowOf(note) : -1}; };
+	semis = clamp(semis, -SNAP_REACH, SNAP_REACH);
+	if (sc.spread)
+		return sc.any() ? rowed(nearestSpread(sc, semis)) : Snapped{wholeOf(semis), -1};
+	// A keyboard's search says whether a key is on, and where the note it
+	// found stands, so neither is asked of the pattern a second time; a note
+	// moved on by degrees is asked afresh.
+	const int k = (int)std::floor(semis);
+	if (!span.holds(k)) {
+		span = spanOf(sc, k);
+		// With no key on there are no two notes to stand between, and the
+		// span that says so is the pitch's own: none is kept.
+		if (!span.keyed) {
+			span = KeySpan();
+			return {wholeOf(semis), -1};
+		}
+	}
+	const Snapped at = nearestOf(span, semis);
+	return sc.degrees == 0 ? at : rowed(degreeMoved(sc, at.note));
+}
+
+/** The same of a pitch with no voice to keep its span. */
+inline Snapped nearestNote(const Scale& sc, float semis) {
+	KeySpan span;
+	return nearestNote(sc, semis, span);
 }
 
 /** The same, preferring `root` as the note it is named on: the white keys

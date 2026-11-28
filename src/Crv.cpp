@@ -98,7 +98,7 @@ inline const Gesture G_CRV_SHAPES_ALIKE =
 another spline, the points of both are one curve. */
 const char* const SPLINE_RUN_LESSON = "One smooth curve through the points of the spline CRVs joined to it.";
 
-struct Crv : Cartridge, Probe {
+struct Crv final : Cartridge, Probe {
 	MEMBER_FOOTPRINT
 	enum ParamId {
 		START_PARAM, // the start, a travel nought to one across the window
@@ -1350,7 +1350,7 @@ struct CrvWidget : MemberWidget {
 		// What only the UI knows of my colour: the cable arriving and the bond.
 		Crv* m = dynamic_cast<Crv*>(module);
 		if (m) {
-			m->inRGB.store(cableColorOn(getInput(Crv::IN_INPUT)), std::memory_order_relaxed);
+			m->inRGB.store(cableColorIn(module, Crv::IN_INPUT), std::memory_order_relaxed);
 			const std::vector<ModuleWidget*>* run = runOf(this);
 			m->bondedUi.store(run && run->size() > 1, std::memory_order_relaxed);
 			// My place in my block and a spline joined to a spline, for the

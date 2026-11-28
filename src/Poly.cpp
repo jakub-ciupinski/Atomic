@@ -445,15 +445,15 @@ struct PolyWidget : GatherWidget<Poly, PolyScreen> {
 	the one whose cable they follow (`Cartridge::pullFeed`). */
 	template <typename F>
 	void eachFed(F f) {
-		const std::vector<ModuleWidget*>* run = runOf(this, true);
+		const std::vector<Seat>* run = seatsOf(this);
 		if (!run || !gatherer || gatherer->isBypassed())
 			return;
-		auto me = std::find(run->begin(), run->end(), this);
+		auto me = std::find_if(run->begin(), run->end(), [&](const Seat& s) { return s.widget == this; });
 		if (me == run->end())
 			return;
 		for (auto it = me + 1; it != run->end(); ++it) {
-			Member* m = dynamic_cast<Member*>((*it)->module);
-			if (!m || m->isBypassed())
+			Member* m = it->member;
+			if (m->isBypassed())
 				continue;
 			const int id = m->manifestId();
 			if (id == manifest::M_POLY)
@@ -486,8 +486,8 @@ struct PolyWidget : GatherWidget<Poly, PolyScreen> {
 	pushed it, so one undo takes back both, else a step of its own. */
 	void giveBack() {
 		bool fresh = false;
-		for (CableWidget* cw : APP->scene->rack->getCompleteCablesOnPort(getInput(Poly::IN_INPUT)))
-			if (cw->cable && cablesSeen.insert(cw->cable->id).second)
+		for (const CableIn& c : cablesIn(gatherer, Poly::IN_INPUT))
+			if (c.cabled && cablesSeen.insert(c.id).second)
 				fresh = true;
 		const bool first = !stepped;
 		stepped = true;

@@ -685,8 +685,10 @@ inline float rangeStage(Signal& s, float top) {
 }
 /** A quantizer as a reader's step on its cable: the arriving pitch
 snapped to the scale, or nought snapped with nothing arriving, which leaves
-the signal absent. `value` gets the key sounded, -1 with no signal. */
-inline float quantStage(Signal& s, const Scale& scale, int* value, int* bandOut = nullptr, int* noteOut = nullptr) {
+the signal absent. `value` gets the key sounded, -1 with no signal. `span`
+is the quantizer's own to keep from one pitch to the next
+(`nearestNote`): what a reader hands it mostly stands where it stood. */
+inline float quantStage(Signal& s, const Scale& scale, int* value, int* bandOut, Snapped* noteOut, KeySpan& span) {
 	// A volt divider snaps the voltage to its line, a whole band each, no
 	// note at all: the band is handed out as the integer it was snapped by
 	// (`bandOut`), for a reader to light, never named again from the
@@ -704,13 +706,15 @@ inline float quantStage(Signal& s, const Scale& scale, int* value, int* bandOut 
 			s.setLine(line, s.color);
 		return 12.f * line;
 	}
-	const int semis = nearestNote(scale, s.present ? s.semis : 0.f);
+	const Snapped at = nearestNote(scale, s.present ? sane(s.semis) : 0.f, span);
+	const int semis = at.note;
 	if (value)
-		*value = s.present ? scale.rowOf(semis) : -1;
-	// The note snapped to as a whole semitone, for whoever lights it, since
-	// a note detuned by its key's cents may stand nearer the next one.
+		*value = !s.present ? -1 : at.row >= 0 ? at.row : scale.rowOf(semis);
+	// The note snapped to as a whole semitone and its row, for whoever
+	// lights it, since a note detuned by its key's cents may stand nearer
+	// the next one.
 	if (noteOut)
-		*noteOut = semis;
+		*noteOut = at;
 	const float tuned = scale.tunedSemis(semis);
 	if (s.present)
 		s.set(tuned, s.color);

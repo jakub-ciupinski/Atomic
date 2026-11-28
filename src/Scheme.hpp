@@ -7,64 +7,132 @@ and what a bonded module is in the scheme. A part of Hand.hpp in a file of
 its own: Hand.hpp includes it once, inside its namespace rig, and it is not a
 header to include anywhere else. */
 
-/** The colour of the first cable on a jack, packed RGBA, nought for none:
-only the UI knows a cable's colour, so a widget asks in its step and hands it
-to the module. A cable's colour is ours to wear wherever a module shows what
-arrived through it. */
-inline uint32_t cableColorOn(PortWidget* pw) {
-	if (!pw || !APP || !APP->scene || !APP->scene->rack)
-		return 0;
-	std::vector<CableWidget*> cables = APP->scene->rack->getCompleteCablesOnPort(pw);
-	if (cables.empty())
-		return 0;
-	return packRGB(cables[0]->color);
+/** One cable in an input, as the frame's list has it: the jack it goes
+into, its colour packed RGBA, and where it comes from, the module's id and
+its output, with the cable's own id. `cabled` says the engine has the cable
+and `sourced` that it has a module at its other end too, which is all a
+stack counts. */
+struct CableIn {
+	Module* module;
+	int input;
+	uint32_t rgb;
+	bool cabled, sourced;
+	int64_t id;
+	int64_t from;
+	int out;
+	bool operator<(const CableIn& o) const { return module != o.module ? std::less<Module*>()(module, o.module) : input < o.input; }
+};
+/** The cables in one input, first to last as the rack holds them, which is
+the order they were plugged. */
+struct CablesIn {
+	const CableIn* first = nullptr;
+	const CableIn* last = nullptr;
+	const CableIn* begin() const { return first; }
+	const CableIn* end() const { return last; }
+};
+/** Every complete cable into a jack of `m`, from the one list of the
+patch's cables made once a frame and sorted by the input: asked of the rack
+for one jack (`getCompleteCablesOnPort`) it is a look through every cable of
+the patch, and every jack of ours that wears its cable's colour and every
+gatherer listing its stack asks every frame, so the asking grew as the
+modules times the cables. The list holds what a cable said and no cable, so
+nothing in it can be left pointing at one that has gone; it is made again
+when the frame moves, the history moves or the rack's cables are not the
+ones it was made from. Only the UI knows a cable, so a widget asks in its
+step and hands what it reads to the module. */
+inline CablesIn cablesIn(Module* m, int input) {
+	if (!m || !APP || !APP->scene || !APP->scene->rack)
+		return CablesIn();
+	static std::vector<CableIn> ins;
+	static FrameId at;
+	static StepKey seen;
+	static size_t count = 0;
+	static const Widget* last = nullptr;
+	const std::list<Widget*>& cables = APP->scene->rack->getCableContainer()->children;
+	const FrameId now = frameId();
+	const StepKey moved = StepKey::now();
+	const Widget* back = cables.empty() ? nullptr : cables.back();
+	if (now != at || moved != seen || cables.size() != count || back != last) {
+		at = now;
+		seen = moved;
+		count = cables.size();
+		last = back;
+		ins.clear();
+		for (Widget* w : cables) {
+			CableWidget* cw = dynamic_cast<CableWidget*>(w);
+			if (!cw || !cw->isComplete() || !cw->inputPort->module)
+				continue;
+			const engine::Cable* c = cw->cable;
+			const bool sourced = c && c->outputModule;
+			ins.push_back({cw->inputPort->module, cw->inputPort->portId, packRGB(cw->color), c != nullptr, sourced, c ? c->id : -1,
+			               sourced ? c->outputModule->id : -1, c ? c->outputId : 0});
+		}
+		// The rack's order kept within an input: a stable sort.
+		std::stable_sort(ins.begin(), ins.end());
+	}
+	const CableIn key = {m, input, 0, false, false, -1, -1, 0};
+	const std::pair<std::vector<CableIn>::const_iterator, std::vector<CableIn>::const_iterator> range =
+	    std::equal_range(ins.begin(), ins.end(), key);
+	CablesIn of;
+	of.first = ins.data() + (range.first - ins.begin());
+	of.last = ins.data() + (range.second - ins.begin());
+	return of;
+}
+/** The colour of the first cable on a jack, packed RGBA, nought for none. A
+cable's colour is ours to wear wherever a module shows what arrived through
+it. */
+inline uint32_t cableColorIn(Module* m, int input) {
+	const CablesIn in = cablesIn(m, input);
+	return in.first != in.last ? in.first->rgb : 0;
 }
 /** The ink of a screen's modulation line, the bar along its foot: the colour
-of the cable bringing what it draws, packed as `cableColorOn` gives it, else
+of the cable bringing what it draws, packed as `cableColorIn` gives it, else
 the screen's own ink, and the screen's own under the DEV's OLD. */
 inline NVGcolor modColor(uint32_t rgb, NVGcolor own) {
 	return rgb && !dev().oldColors ? fromRGB(rgb) : own;
 }
-/** The cables stacked on `port` as a `Stack` counts them: in the order the
-rack holds them, which is the order they were plugged, at most
-`Stack::MAX`, each from a module. The one list both the engine's count of a
-row's cable (`publishStack`) and the hover's glow on it (`glowCable`) are
-read against, so the two never count differently. */
-inline std::vector<CableWidget*> stackCables(PortWidget* port) {
-	std::vector<CableWidget*> kept;
-	if (!port || !APP || !APP->scene || !APP->scene->rack)
-		return kept;
-	for (CableWidget* cw : APP->scene->rack->getCompleteCablesOnPort(port))
-		if ((int)kept.size() < Stack::MAX && cw->cable && cw->cable->outputModule)
-			kept.push_back(cw);
+/** The cables stacked in an input as a `Stack` counts them: in the order
+the rack holds them, at most `Stack::MAX`, each from a module (`sourced`).
+The one list both the engine's count of a row's cable (`publishStack`) and
+the hover's glow on it (`glowCable`) are read against, so the two never
+count differently. */
+struct Stacked {
+	const CableIn* at[Stack::MAX];
+	int n = 0;
+};
+inline Stacked stackCables(Module* m, int input) {
+	Stacked kept;
+	for (const CableIn& c : cablesIn(m, input))
+		if (kept.n < Stack::MAX && c.sourced)
+			kept.at[kept.n++] = &c;
 	return kept;
 }
-/** The UI's half of a `Stack` (Stack.hpp): the cables now on `port`
+/** The UI's half of a `Stack` (Stack.hpp): the cables now in the input
 (`stackCables`), listed for the engine under the stack's sequence count.
 True when the list changed, for the owner to ask for a wake, since the
 input's sum may not have moved. */
-inline bool publishStack(Stack& s, PortWidget* port) {
-	if (!port || !APP || !APP->scene || !APP->scene->rack)
+inline bool publishStack(Stack& s, Module* m, int input) {
+	if (!m || !APP || !APP->scene || !APP->scene->rack)
 		return false;
-	const std::vector<CableWidget*> cables = stackCables(port);
-	const int k = (int)cables.size();
+	const Stacked cables = stackCables(m, input);
+	const int k = cables.n;
 	// Nothing moved, nothing written: the list is compared first so a
 	// still patch costs the engine no retake.
 	bool same = k == s.n.load(std::memory_order_relaxed);
 	for (int i = 0; same && i < k; i++) {
-		const engine::Cable* c = cables[i]->cable;
-		same = s.ids[i].load(std::memory_order_relaxed) == c->outputModule->id &&
-		       s.outs[i].load(std::memory_order_relaxed) == c->outputId &&
-		       s.rgbs[i].load(std::memory_order_relaxed) == packRGB(cables[i]->color);
+		const CableIn* c = cables.at[i];
+		same = s.ids[i].load(std::memory_order_relaxed) == c->from &&
+		       s.outs[i].load(std::memory_order_relaxed) == c->out &&
+		       s.rgbs[i].load(std::memory_order_relaxed) == c->rgb;
 	}
 	if (same)
 		return false;
 	Writing<uint32_t> whole(s.seq);
 	for (int i = 0; i < k; i++) {
-		const engine::Cable* c = cables[i]->cable;
-		s.ids[i].store(c->outputModule->id, std::memory_order_relaxed);
-		s.outs[i].store(c->outputId, std::memory_order_relaxed);
-		s.rgbs[i].store(packRGB(cables[i]->color), std::memory_order_relaxed);
+		const CableIn* c = cables.at[i];
+		s.ids[i].store(c->from, std::memory_order_relaxed);
+		s.outs[i].store(c->out, std::memory_order_relaxed);
+		s.rgbs[i].store(c->rgb, std::memory_order_relaxed);
 	}
 	s.n.store(k, std::memory_order_relaxed);
 	return true;
@@ -82,8 +150,8 @@ inline CableGlowAsked& cableGlowAsked() {
 	static CableGlowAsked a;
 	return a;
 }
-inline void glowCable(CableWidget* cw) {
-	if (!cw || !cw->cable || !APP || !APP->window)
+inline void glowCable(int64_t id) {
+	if (!APP || !APP->window)
 		return;
 	CableGlowAsked& a = cableGlowAsked();
 	const double now = APP->window->getFrameTime();
@@ -91,8 +159,8 @@ inline void glowCable(CableWidget* cw) {
 		a.ids.clear();
 		a.at = now;
 	}
-	if (std::find(a.ids.begin(), a.ids.end(), cw->cable->id) == a.ids.end())
-		a.ids.push_back(cw->cable->id);
+	if (std::find(a.ids.begin(), a.ids.end(), id) == a.ids.end())
+		a.ids.push_back(id);
 }
 /** A cable drawn as Rack draws one whose jack is hovered, whole and opaque,
 and its colour never touched, the colour being the patch's. Rack's own

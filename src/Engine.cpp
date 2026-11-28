@@ -14,7 +14,7 @@ stands.
 Deciding whether anything changed is three things and no more, and none of
 them asks a module how it behaves. The tick subscribers go first: the short
 list of members with state of their own to advance, a clock's ramp or a
-glide, which is asked for afresh after every wake. Then the watch
+glide, which is asked for after every wake (`retick`). Then the watch
 table, one flat sweep of every number arriving from outside: every channel
 of every connected jack every sample, every param every control period.
 Then the pokes, for what the user interface has written behind the rig's
@@ -89,16 +89,46 @@ void Host::buildWatch() {
 	}
 }
 
-/** Who wants the sample tick, asked afresh. */
-void Host::retick() {
-	for (Member* m : members)
-		m->subscribed = false;
+/** Whether every setting of `m` stands as the table last saw it, for the
+quiet check. */
+static bool sweptStands(const Member* m, const std::vector<Watch>& table) {
+	for (const Watch& w : table)
+		if (w.owner == m && *w.at != w.last)
+			return false;
+	return true;
+}
+
+/** Who wants the sample tick. What a member answers by is its own state,
+which only its own code moves, its jacks and its settings; so after a wake
+that swept no knob and wrote no table (`all` false) only the members whose
+code ran on this sample (`worked`) are asked, the others standing as they
+answered, and the list is written again only if an answer moved, in the
+members' order as ever. A long rig with one end awake asked every member
+at every wake, a virtual call each. A new table, a parse, a reset and the
+control period ask everybody, which is where a cable arriving and a knob a
+hand moved are seen: a setting moved between two looks of the table is the
+table's to find, as it is in a rig that sleeps. Under the quiet check a
+member left out with its settings as the table saw them is asked anyway,
+and counted where it would have answered otherwise. */
+void Host::retick(bool all) {
+	bool moved = all;
+	for (Member* m : members) {
+		if (!all && !m->worked) {
+			if (tree::checkQuiet && m->wantsTick() != m->subscribed && sweptStands(m, knobs) && sweptStands(m, buttons) &&
+			    tree::quietBroken++ < 5)
+				fprintf(stderr, "checkQuiet: a tick left unasked would have moved %s %d\n", m->nodeName().c_str(), m->place + 1);
+			continue;
+		}
+		const bool wants = m->wantsTick();
+		moved = moved || wants != m->subscribed;
+		m->subscribed = wants;
+	}
+	if (!moved)
+		return;
 	tickers.clear();
 	for (Member* m : members)
-		if (m->wantsTick()) {
-			m->subscribed = true;
+		if (m->subscribed)
 			tickers.push_back(m);
-		}
 }
 
 /** A member the sweep has found moving, marked once however many of its
@@ -172,10 +202,17 @@ bool Host::takeAsk() {
 }
 
 void Member::process(const ProcessArgs& args) {
-	const bool slow = (args.frame % CONTROL_PERIOD) == 0;
 	// Who hosts is settled by the pointers, so it is worked out once and kept
-	// until the topology moves; a member's sample is then two loads and a
-	// return.
+	// until the topology moves; the sample of a member that hosts nothing is
+	// then two loads and a return, and so that it is no more, with no
+	// register saved for work it will not do, the rest is kept out of line.
+	if (topology() == knownEpoch && !host)
+		return;
+	hostOrMoved(args);
+}
+
+void Member::hostOrMoved(const ProcessArgs& args) {
+	const bool slow = (args.frame % CONTROL_PERIOD) == 0;
 	const uint32_t now = topology();
 	const bool moved = now != knownEpoch;
 	if (moved) {
@@ -303,13 +340,33 @@ void Host::bond(Member* self) {
 	bracketOff = bracketResettable = -1;
 }
 
+/** Whether the engine rests after this sample, the last of the block it is
+stepping: Rack steps a block and then stands still until the next is asked
+for, and a frame is drawn in between far more often than not, so what stands
+published then is what a screen sees. Asked of the engine stepping me; the
+headless tests step the rigs themselves and say where their block ends
+(`blockLast`). */
+#ifdef ATOMIC_DEV
+thread_local int64_t blockLast = -1;
+#endif
+static inline bool blockEnds(int64_t frame) {
+	if (const Context* c = contextGet())
+		if (engine::Engine* e = c->engine)
+			return frame + 1 >= e->getBlockFrame() + e->getBlockFrames();
+#ifdef ATOMIC_DEV
+	return frame >= blockLast;
+#else
+	return true;
+#endif
+}
+
 void Host::sample(const Module::ProcessArgs& args, bool slow) {
 	const uint32_t wire = wiring();
 	bool fresh = false;
 	if (wire != knownWiring) {
 		knownWiring = wire;
 		buildWatch();
-		retick();
+		retick(true);
 		fresh = true;
 	}
 
@@ -407,8 +464,13 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 		}
 	}
 	if (!wake) {
+		// The run of wakes has ended on a late one: its look, now.
+		if (looksOwed) {
+			looksOwed = false;
+			tree::look(nodes);
+		}
 		if (slow)
-			retick(); // a wake asks after it instead
+			retick(true); // a wake asks after it instead
 		bracketLines(args); // a comparison owed by a wake that came before it was due
 		return;
 	}
@@ -424,13 +486,24 @@ void Host::sample(const Module::ProcessArgs& args, bool slow) {
 		tree::fineGroup(nodes, fine);
 	}
 	ran = true;
-	if (tree::evaluate(nodes, args, fineOnly, plain))
+	// A wake on the sample after a wake is one of a run, a cable at audio
+	// rate or a ramp played every sample, and what it would publish is a
+	// sample old before any screen is drawn: it is late, its publish left to
+	// the look that ends the run (above), the control period or the block,
+	// whichever comes first. So a rig that wakes now and then publishes
+	// every wake as it always did, the first wake of a run does, and nothing
+	// is owed when the engine rests or when the control period's own
+	// measurements are taken on the sample after its last.
+	const bool late = args.frame == wokeAt + 1 && (args.frame + 1) % Member::CONTROL_PERIOD != 0 && !blockEnds(args.frame);
+	wokeAt = args.frame;
+	looksOwed = late;
+	if (tree::evaluate(nodes, args, fineOnly, plain, late))
 		fineStale = true;
 	linesOwed = true;
 	bracketLines(args);
 	// A wake is what changes who has state to advance: a clock told to run,
 	// a glide set going, a pulse just fired.
-	retick();
+	retick(!plain);
 }
 
 /** The SYNC on the bracket is only a light, so the walks are compared at most

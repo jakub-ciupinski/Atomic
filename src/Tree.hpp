@@ -237,6 +237,26 @@ struct FineScratch {
 	}
 };
 
+/** A fact of one wake that a screen is owed and that no later wake carries: a
+ring struck, an edge risen. Gathered wake upon wake (`add`), since a wake's
+publish may be left to a later one (`evaluate`, a late wake), and put down only
+by the publish that hands it over (`take`), never in a clear: a clear would
+drop what no screen has been handed yet, and would move a node a wake left
+out. Bits, so that the facts of two wakes are both there. Every such fact is
+one of these; what is merely the latest of something is a plain field. */
+template <typename T>
+struct Latch {
+	void add(T bits) { held |= bits; }
+	T take() {
+		const T was = held;
+		held = T();
+		return was;
+	}
+
+private:
+	T held = T();
+};
+
 struct Node {
 	uint32_t traits = 0;
 	std::vector<Slot> slots; // parallel to declarations()
@@ -251,6 +271,10 @@ struct Node {
 	bool always = false; // at every wake whatever the gate says: see atEveryWake()
 	bool touch = false;  // a node at every wake can reach it, so its reads are cleared: see build()
 	bool ranNow = false; // it evaluated in the wake being run
+	// A wake reached me and its publish was left to a later one (`evaluate`,
+	// a late wake): the screens are owed what I stand at, by the next wake
+	// that publishes or by the host's look (`look`), whichever is first.
+	bool owes = false;
 	// Whether anything of mine has run, or anything been written into me,
 	// since whoever steps me last asked: an evaluate, a clear or a publish
 	// of a wake, a sample's private work. With none of it nothing I put out
@@ -266,7 +290,8 @@ struct Node {
 	// Published at every wake that reaches me, written into or not: what I
 	// publish is worked out afresh from a param or a jack as I publish it
 	// (an Atn's offset, from its knob and its CV), so the host may not
-	// leave it out.
+	// leave it out. And told the end of every such wake (`wakeEnds`), the
+	// late ones too.
 	bool publishesLive = false;
 	// A reader at every wake that plays its writer's ramp (`fine`, said by
 	// the node as it evaluates, and `evaluate` tells the host when it
@@ -315,6 +340,13 @@ struct Node {
 	the wake and published here, so a screen sees either the last wake whole
 	or this one whole and never the space between them. */
 	virtual void publishReads() {}
+	/** What the end of a wake owes the engine itself rather than a screen,
+	asked of a node that `publishesLive` at every wake that reaches it,
+	before its publish or in place of it at a late wake: an Atn's meter put
+	down as it stops. A publish is only ever a handing over, so that one made
+	later hands over the same; whatever the engine reads again is done here,
+	on its wake. */
+	virtual void wakeEnds() {}
 	virtual std::string nodeName() = 0;
 	/** Which row of the manifest this node is, or minus one for a node with
 	no row (a test's stub). Written by ROW_MANIFEST, never by hand. */
@@ -448,7 +480,7 @@ private:
 	its that relays it. */
 	static void hear(Node* to, uint32_t what);
 	friend void build(const std::vector<Node*>& rig);
-	friend bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly, bool rampsApart);
+	friend bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly, bool rampsApart, bool late);
 	friend std::string print(const std::vector<Node*>& rig);
 	friend void fineGroup(const std::vector<Node*>& rig, FineScratch& scratch);
 	friend struct Inspect; // a headless test's window on the edges, defined outside the plugin
@@ -473,7 +505,11 @@ node's own `evaluate`, so the answer is this rig's and rings no other, where
 a plugin-wide serial would make every rig in the patch rework its group for
 one Seq's glide, and a thread's own flag is a call to reach on Windows. */
 bool evaluate(const std::vector<Node*>& rig, const Module::ProcessArgs& args, bool fineOnly = false,
-              bool rampsApart = false);
+              bool rampsApart = false, bool late = false);
+/** A wake's third pass alone, for the wakes that were left without one: every
+node that owes the screens (`Node::owes`) publishes as it stands. Whether
+any did. */
+void look(const std::vector<Node*>& rig);
 /** The gate, off: every node evaluated whether or not anything it reads
 moved. The headless tests run one copy of every patch each way and require
 them to agree sample for sample; nothing else ever turns it off. */

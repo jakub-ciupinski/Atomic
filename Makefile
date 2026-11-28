@@ -38,7 +38,7 @@ include $(RACK_DIR)/plugin.mk
 # them while make ran let the link look for objects it had already judged
 # built. The goals that only call make again, or build or name nothing here,
 # leave the build alone.
-ifeq ($(filter-out dev dev-install tools tools-dist tools-install tools-clean distributables,$(or $(MAKECMDGOALS),all)),)
+ifeq ($(filter-out dev dev-install tools tools-dist tools-install tools-clean distributables shipped-flags,$(or $(MAKECMDGOALS),all)),)
 else ifneq ($(shell cat build/form 2>/dev/null),$(ATOMIC_DEV))
 $(shell rm -rf build/src build/form-*; mkdir -p build; echo $(ATOMIC_DEV) > build/form)
 endif
@@ -75,3 +75,10 @@ endif
 .PHONY: distributables
 distributables:
 	@echo $(DISTRIBUTABLES)
+
+# The optimisation and floating-point flags the plugin is compiled with, the
+# SDK's and sdk.mk's together in the order the compiler meets them, for the
+# sim to build at the same (sim/flags.sh).
+.PHONY: shipped-flags
+shipped-flags:
+	@echo $(filter -O% -f%,$(CXXFLAGS))

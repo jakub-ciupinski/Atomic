@@ -3,6 +3,7 @@
 #pragma once
 #include "plugin.hpp"
 #include <dsp/minblep.hpp>
+#include <array>
 
 /** A band-limited step, the edge a Seq puts on its jack under a Clock in
 hertz (`Count::hertz`), its BLEP on. A step from one note to the next is a corner on
@@ -108,7 +109,17 @@ struct Decimate4 {
 	    7.28071373e-08f, 1.07608989e-07f, 3.6319866e-08f, -4.06045962e-09f,
 	    -2.18219165e-08f, -6.45742542e-10f, -1.12753926e-09f, 1.84299315e-09f,
 	};
-	static const float* kernel() { return KERNEL; }
+	/** The kernel oldest first, which is the window's own order, so a
+	frame's sum reads both straight through. */
+	static const float* kernel() {
+		static const std::array<float, TAPS> table = [] {
+			std::array<float, TAPS> t{};
+			for (int i = 0; i < TAPS; i++)
+				t[i] = KERNEL[TAPS - 1 - i];
+			return t;
+		}();
+		return table.data();
+	}
 	// The last TAPS points, twice over so a frame's window is one run.
 	float buf[2 * TAPS] = {};
 	int pos = 0;
@@ -123,11 +134,17 @@ struct Decimate4 {
 		if (same >= TAPS)
 			return x[3];
 		const float* k = kernel();
-		const float* b = buf + pos; // oldest first, so the kernel newest first
-		float o = 0.f;
-		for (int i = 0; i < TAPS; i++)
-			o += k[TAPS - 1 - i] * b[i];
-		return o;
+		const float* b = buf + pos; // oldest first, as the kernel is
+		// Sixteen running sums, four vectors of four, a tap in sixteen to
+		// each, added in a fixed tree: the order is written out, so the sum
+		// runs four lanes at a time without the compiler reassociating
+		// anything, and every platform sums alike.
+		simd::float_4 lane[4] = {0.f, 0.f, 0.f, 0.f};
+		for (int i = 0; i < TAPS; i += 16)
+			for (int v = 0; v < 4; v++)
+				lane[v] += simd::float_4::load(k + i + 4 * v) * simd::float_4::load(b + i + 4 * v);
+		const simd::float_4 s = (lane[0] + lane[2]) + (lane[1] + lane[3]);
+		return (s[0] + s[2]) + (s[1] + s[3]);
 	}
 	/** The frames until a value held from now comes out as itself. */
 	int settling() const { return (TAPS - same + 3) / 4; }

@@ -250,7 +250,7 @@ struct AtnMeter {
 	}
 };
 
-struct Atn : Cartridge, Probe {
+struct Atn final : Cartridge, Probe {
 	MEMBER_FOOTPRINT
 	enum ParamId {
 		GAIN_PARAM,
@@ -1184,6 +1184,19 @@ struct Atn : Cartridge, Probe {
 		outOnlyWork = unread && outputs[CV_OUTPUT].isConnected();
 		overriddenWork = unread && !outOnlyWork;
 	}
+	/** Whether there is anything to meter, worked out at the end of every
+	wake that reaches me and not in my own: the router writes into me at the
+	Seq's wake, which reaches me without running me, so a field my
+	`publishJack` filled would latch whichever Atn was routed when the rig
+	last woke whole. Put down at once when I stop. The meter is the engine's
+	own, followed every sample from where this leaves it, so it is no part
+	of the publish, which a late wake leaves to a later one. */
+	void wakeEnds() override {
+		const bool metering = running();
+		if (!metering)
+			meter.rest();
+		meter.meteringNow.store(metering, std::memory_order_relaxed);
+	}
 	void publishReads() override {
 		Cartridge::publishReads();
 		ofs.publish();
@@ -1197,16 +1210,6 @@ struct Atn : Cartridge, Probe {
 		outOnlyNow.store(outOnlyWork, std::memory_order_relaxed);
 		aloneNow.store(aloneWork, std::memory_order_relaxed);
 		crvNow.store(crvWork, std::memory_order_relaxed);
-		// Whether there is anything to meter, worked out here and not in my
-		// own wake: the router writes into me at the Seq's wake, which
-		// publishes me without running me, so a field my `publishJack` filled
-		// would latch whichever Atn was routed when the rig last woke whole.
-		// Put down at once when I
-		// stop.
-		const bool metering = running();
-		if (!metering)
-			meter.rest();
-		meter.meteringNow.store(metering, std::memory_order_relaxed);
 		// Read by the screens, so they are handed over together at the end of
 		// the wake rather than as they are worked out: see the three-pass
 		// rule in Engine.cpp.
